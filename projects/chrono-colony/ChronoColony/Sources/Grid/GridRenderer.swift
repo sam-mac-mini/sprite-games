@@ -8,6 +8,7 @@ final class GridRenderer {
     private var buildingLabels: [[SKLabelNode?]] = []
     private var workerNodes: [[SKNode?]] = []
     private var selectionNode: SKShapeNode?
+    private var bonusIndicators: [[SKNode?]] = []
     
     // Grid dimensions
     private let columns: Int
@@ -48,6 +49,7 @@ final class GridRenderer {
             var rowNodes: [SKShapeNode] = []
             var rowLabels: [SKLabelNode?] = []
             var rowWorkers: [SKNode?] = []
+            var rowBonuses: [SKNode?] = []
             
             for col in 0..<columns {
                 let x = offsetX + CGFloat(col) * tileSize
@@ -81,11 +83,40 @@ final class GridRenderer {
                 workerContainer.isHidden = true
                 gridNode.addChild(workerContainer)
                 rowWorkers.append(workerContainer)
+                
+                // Adjacency bonus indicator (hidden by default)
+                let bonusNode = SKNode()
+                bonusNode.position = CGPoint(x: x, y: y)
+                bonusNode.zPosition = 3
+                bonusNode.isHidden = true
+                gridNode.addChild(bonusNode)
+                
+                // Glow border for bonus
+                let glow = SKShapeNode(rectOf: CGSize(width: tileSize - 1, height: tileSize - 1), cornerRadius: 4)
+                glow.fillColor = .clear
+                glow.strokeColor = SKColor(red: 0.2, green: 0.9, blue: 0.5, alpha: 0.6)
+                glow.lineWidth = 1.5
+                glow.glowWidth = 2
+                glow.name = "bonusGlow"
+                bonusNode.addChild(glow)
+                
+                // Small multiplier label
+                let bonusLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+                bonusLabel.fontSize = tileSize * 0.2
+                bonusLabel.fontColor = SKColor(red: 0.3, green: 1, blue: 0.5, alpha: 0.9)
+                bonusLabel.position = CGPoint(x: -tileSize * 0.32, y: tileSize * 0.28)
+                bonusLabel.horizontalAlignmentMode = .left
+                bonusLabel.verticalAlignmentMode = .center
+                bonusLabel.name = "bonusLabel"
+                bonusNode.addChild(bonusLabel)
+                
+                rowBonuses.append(bonusNode)
             }
             
             tileNodes.append(rowNodes)
             buildingLabels.append(rowLabels)
             workerNodes.append(rowWorkers)
+            bonusIndicators.append(rowBonuses)
         }
         
         // Selection highlight node
@@ -107,16 +138,20 @@ final class GridRenderer {
                 let node = tileNodes[row][col]
                 let label = buildingLabels[row][col]
                 let workerContainer = workerNodes[row][col]
+                let bonusNode = bonusIndicators[row][col]
                 
                 switch tile.content {
                 case .empty:
                     node.fillColor = emptyColor
                     label?.isHidden = true
                     workerContainer?.isHidden = true
+                    bonusNode?.isHidden = true
                     
                 case .building(let type):
-                    // Building color with active/inactive state
-                    if tile.isActive {
+                    // Building color with active/inactive/disabled state
+                    if tile.isDisabled {
+                        node.fillColor = type.color.withAlphaComponent(0.2)
+                    } else if tile.isActive {
                         node.fillColor = type.color
                     } else {
                         node.fillColor = type.color.withAlphaComponent(0.4)
@@ -126,6 +161,18 @@ final class GridRenderer {
                     
                     // Worker visualization
                     updateWorkerDisplay(container: workerContainer, workers: tile.assignedWorkers, isActive: tile.isActive)
+                    
+                    // Adjacency bonus indicator
+                    let mult = grid.adjacencyMultiplier(col: col, row: row)
+                    if mult > 1.01 {
+                        bonusNode?.isHidden = false
+                        if let bonusLabel = bonusNode?.childNode(withName: "bonusLabel") as? SKLabelNode {
+                            let pct = Int((mult - 1.0) * 100)
+                            bonusLabel.text = "+\(pct)%"
+                        }
+                    } else {
+                        bonusNode?.isHidden = true
+                    }
                     
                 case .resourceDeposit(let deposit):
                     switch deposit {
@@ -144,11 +191,13 @@ final class GridRenderer {
                     }
                     label?.isHidden = false
                     workerContainer?.isHidden = true
+                    bonusNode?.isHidden = true
                     
                 case .blocked:
                     node.fillColor = SKColor(red: 0.06, green: 0.06, blue: 0.08, alpha: 1)
                     label?.isHidden = true
                     workerContainer?.isHidden = true
+                    bonusNode?.isHidden = true
                 }
             }
         }

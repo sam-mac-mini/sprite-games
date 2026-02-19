@@ -435,10 +435,19 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                     showFloatingText("No workers", at: col, row: row, color: .red)
                 }
             }
+        } else if buildMenu.isToggleMode {
+            if let tile = gridModel.tile(at: col, row: row), tile.buildingType != nil {
+                let nowDisabled = gridModel.toggleBuilding(at: col, row: row)
+                if nowDisabled {
+                    showFloatingText("⏸ Disabled", at: col, row: row, color: .orange)
+                } else {
+                    showFloatingText("▶ Enabled", at: col, row: row, color: .green)
+                }
+            }
         } else {
             // No mode — show building info
             if let tile = gridModel.tile(at: col, row: row), let bt = tile.buildingType {
-                showBuildingInfo(type: bt, tile: tile)
+                showBuildingInfo(type: bt, tile: tile, col: col, row: row)
             }
             selectedTilePos = (col, row)
             gridRenderer.selectTile(col: col, row: row)
@@ -474,9 +483,10 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     
     // MARK: - Building Info
     
-    private func showBuildingInfo(type: BuildingType, tile: Tile) {
+    private func showBuildingInfo(type: BuildingType, tile: Tile, col: Int, row: Int) {
         infoPanel?.dismiss()
-        let panel = InfoPanelRenderer(buildingType: type, tile: tile, sceneSize: size)
+        let mult = gridModel.adjacencyMultiplier(col: col, row: row)
+        let panel = InfoPanelRenderer(buildingType: type, tile: tile, adjacencyMultiplier: mult, sceneSize: size)
         cameraNode.addChild(panel.node)
         infoPanel = panel
     }
@@ -791,6 +801,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     
     func buildMenuDidSelectDemolish() { gridRenderer.clearSelection() }
     func buildMenuDidSelectAssignWorker() { gridRenderer.clearSelection() }
+    func buildMenuDidSelectToggle() { gridRenderer.clearSelection() }
     
     // MARK: - EventOverlayDelegate
     

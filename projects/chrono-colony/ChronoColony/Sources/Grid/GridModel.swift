@@ -21,8 +21,9 @@ struct Tile {
     let row: Int
     var content: TileContent = .empty
     var assignedWorkers: Int = 0
-    var isActive: Bool { // Building with at least 1 worker
-        if case .building = content, assignedWorkers > 0 { return true }
+    var isDisabled: Bool = false  // Player can disable buildings to save energy
+    var isActive: Bool { // Building with at least 1 worker AND not disabled
+        if case .building = content, assignedWorkers > 0, !isDisabled { return true }
         return false
     }
     
@@ -99,6 +100,72 @@ final class GridModel {
         tiles[row][col].assignedWorkers -= 1
         state.assignedColonists -= 1
         return true
+    }
+    
+    // MARK: - Building Toggle
+    
+    /// Toggle a building's disabled state. Returns new disabled state.
+    @discardableResult
+    func toggleBuilding(at col: Int, row: Int) -> Bool {
+        guard tiles[row][col].buildingType != nil else { return false }
+        tiles[row][col].isDisabled.toggle()
+        return tiles[row][col].isDisabled
+    }
+    
+    // MARK: - Adjacency
+    
+    /// Returns the 4 cardinal neighbors of a tile
+    func neighbors(col: Int, row: Int) -> [Tile] {
+        let offsets = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        return offsets.compactMap { dx, dy in
+            tile(at: col + dx, row: row + dy)
+        }
+    }
+    
+    /// Calculate adjacency production multiplier for a building at (col, row)
+    /// Returns 1.0 (no bonus) or higher
+    func adjacencyMultiplier(col: Int, row: Int) -> Double {
+        guard let t = tile(at: col, row: row), let building = t.buildingType else { return 1.0 }
+        
+        let adjacent = neighbors(col: col, row: row)
+        var bonus = 0.0
+        
+        for neighbor in adjacent {
+            switch neighbor.content {
+            case .resourceDeposit(let deposit):
+                // Resource deposits boost matching buildings
+                switch (building, deposit) {
+                case (.metalExtractor, .metalVein):
+                    bonus += 0.5  // +50% per adjacent metal vein
+                case (.farm, .biomassZone):
+                    bonus += 0.5  // +50% per adjacent biomass zone
+                case (.researchLab, .anomaly):
+                    bonus += 0.75 // +75% per adjacent anomaly
+                case (.solarArray, _):
+                    break // Solar arrays don't benefit from deposits
+                default:
+                    break
+                }
+            case .building(let adjacentBuilding):
+                // Same-type building clustering bonus
+                if adjacentBuilding == building {
+                    bonus += 0.15  // +15% per adjacent same-type building
+                }
+                // Research labs near any building get a small bonus
+                if building == .researchLab && adjacentBuilding != .researchLab {
+                    bonus += 0.1  // +10% per adjacent non-lab building
+                }
+            default:
+                break
+            }
+        }
+        
+        return 1.0 + bonus
+    }
+    
+    /// Check if a tile has any adjacency bonus (for visual indicator)
+    func hasAdjacencyBonus(col: Int, row: Int) -> Bool {
+        adjacencyMultiplier(col: col, row: row) > 1.01
     }
     
     // MARK: - Queries

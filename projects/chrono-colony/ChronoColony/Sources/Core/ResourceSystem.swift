@@ -11,20 +11,21 @@ final class ResourceSystem {
         var researchDelta: Double = 0
         
         // Process all active buildings
-        for (_, _, tile) in grid.allBuildings() {
+        for (col, row, tile) in grid.allBuildings() {
             guard tile.isActive, let buildingType = tile.buildingType else { continue }
             
             let workers = Double(tile.assignedWorkers)
             let prod = buildingType.production
             let cons = buildingType.consumption
+            let adjacencyMult = grid.adjacencyMultiplier(col: col, row: row)
             
-            // Production scaled by worker count
-            metalDelta += prod.metal * workers
-            energyDelta += prod.energy * workers
-            biomassDelta += prod.biomass * workers
-            researchDelta += prod.research * workers
+            // Production scaled by worker count AND adjacency bonus
+            metalDelta += prod.metal * workers * adjacencyMult
+            energyDelta += prod.energy * workers * adjacencyMult
+            biomassDelta += prod.biomass * workers * adjacencyMult
+            researchDelta += prod.research * workers * adjacencyMult
             
-            // Consumption (always costs, even partial)
+            // Consumption (always costs, NOT affected by adjacency)
             metalDelta -= cons.metal
             energyDelta -= cons.energy
             biomassDelta -= cons.biomass

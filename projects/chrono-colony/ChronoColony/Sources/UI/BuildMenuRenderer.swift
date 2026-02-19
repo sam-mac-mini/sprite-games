@@ -5,6 +5,7 @@ protocol BuildMenuDelegate: AnyObject {
     func buildMenuDidSelect(buildingType: BuildingType)
     func buildMenuDidSelectDemolish()
     func buildMenuDidSelectAssignWorker()
+    func buildMenuDidSelectToggle()
 }
 
 /// Bottom build menu — tap to select a building type, then tap grid to place
@@ -30,13 +31,17 @@ final class BuildMenuRenderer {
         selectedIndex == BuildingType.allCases.count + 1
     }
     
+    var isToggleMode: Bool {
+        selectedIndex == BuildingType.allCases.count + 2
+    }
+    
     init(sceneSize: CGSize) {
         menuNode = SKNode()
         menuNode.name = "buildMenu"
         menuNode.zPosition = 100
         
         // Adapt button size to screen width
-        let allItems = BuildingType.allCases.count + 2 // +demolish +assign
+        let allItems = BuildingType.allCases.count + 3 // +demolish +assign +toggle
         let maxWidth = sceneSize.width - 20
         let idealTotal = CGFloat(allItems) * buttonSize + CGFloat(allItems - 1) * buttonSpacing
         if idealTotal > maxWidth {
@@ -95,6 +100,19 @@ final class BuildMenuRenderer {
         workerBtn.name = "build_\(workerIdx)"
         menuNode.addChild(workerBtn)
         buttons.append(workerBtn)
+        
+        // Toggle (enable/disable) button
+        let toggleIdx = workerIdx + 1
+        let toggleBtn = makeButton(
+            symbol: "⏸",
+            subtitle: "Toggle",
+            color: SKColor(red: 0.5, green: 0.4, blue: 0.15, alpha: 1),
+            x: startX + CGFloat(toggleIdx) * (buttonSize + buttonSpacing),
+            y: bottomY
+        )
+        toggleBtn.name = "build_\(toggleIdx)"
+        menuNode.addChild(toggleBtn)
+        buttons.append(toggleBtn)
     }
     
     func handleTap(at point: CGPoint) -> Bool {
@@ -132,6 +150,8 @@ final class BuildMenuRenderer {
             delegate?.buildMenuDidSelectDemolish()
         } else if isAssignWorkerMode {
             delegate?.buildMenuDidSelectAssignWorker()
+        } else if isToggleMode {
+            delegate?.buildMenuDidSelectToggle()
         }
     }
     

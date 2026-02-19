@@ -4,13 +4,14 @@ import SpriteKit
 final class InfoPanelRenderer {
     let node: SKNode
     
-    init(buildingType: BuildingType, tile: Tile, sceneSize: CGSize) {
+    init(buildingType: BuildingType, tile: Tile, adjacencyMultiplier: Double = 1.0, sceneSize: CGSize) {
         node = SKNode()
         node.zPosition = 150
         node.name = "infoPanel"
         
+        let hasBonus = adjacencyMultiplier > 1.01
         let panelWidth: CGFloat = sceneSize.width * 0.7
-        let panelHeight: CGFloat = 120
+        let panelHeight: CGFloat = hasBonus ? 140 : 120
         
         // Background
         let bg = SKShapeNode(rectOf: CGSize(width: panelWidth, height: panelHeight), cornerRadius: 12)
@@ -47,12 +48,21 @@ final class InfoPanelRenderer {
         let costText = costLines.isEmpty ? "No upkeep" : "Costs: \(costLines.joined(separator: "  "))"
         let workerText = "Workers: \(tile.assignedWorkers)/\(buildingType.requiredWorkers)  •  \(tile.isActive ? "✅ Active" : "⚠️ Needs worker")"
         
-        let lines = [prodText, costText, workerText]
+        var lines = [prodText, costText, workerText]
+        if hasBonus {
+            let pct = Int((adjacencyMultiplier - 1.0) * 100)
+            lines.append("🔗 Adjacency: +\(pct)% production")
+        }
         for (i, line) in lines.enumerated() {
             let label = SKLabelNode(fontNamed: "Menlo")
             label.text = line
             label.fontSize = 11
-            label.fontColor = SKColor(white: 0.8, alpha: 1)
+            // Adjacency line in green
+            if line.contains("Adjacency") {
+                label.fontColor = SKColor(red: 0.3, green: 1, blue: 0.5, alpha: 1)
+            } else {
+                label.fontColor = SKColor(white: 0.8, alpha: 1)
+            }
             label.position = CGPoint(x: 0, y: 10 - CGFloat(i) * 18)
             label.horizontalAlignmentMode = .center
             node.addChild(label)
