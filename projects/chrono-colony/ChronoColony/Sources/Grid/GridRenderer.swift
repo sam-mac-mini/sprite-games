@@ -160,7 +160,7 @@ final class GridRenderer {
                     label?.isHidden = false
                     
                     // Worker visualization
-                    updateWorkerDisplay(container: workerContainer, workers: tile.assignedWorkers, isActive: tile.isActive)
+                    updateWorkerDisplay(container: workerContainer, workers: tile.assignedWorkers, isActive: tile.isActive, isDisabled: tile.isDisabled)
                     
                     // Adjacency bonus indicator
                     let mult = grid.adjacencyMultiplier(col: col, row: row)
@@ -211,28 +211,35 @@ final class GridRenderer {
         }
     }
     
-    private func updateWorkerDisplay(container: SKNode?, workers: Int, isActive: Bool) {
+    private func updateWorkerDisplay(container: SKNode?, workers: Int, isActive: Bool, isDisabled: Bool) {
         guard let container = container else { return }
         container.removeAllChildren()
         
         if workers > 0 {
             container.isHidden = false
             
-            // Small worker dots at bottom of tile
+            // Worker dots at bottom of tile
             for i in 0..<workers {
                 let dot = SKShapeNode(circleOfRadius: 3)
-                dot.fillColor = isActive ? SKColor(red: 0.3, green: 0.9, blue: 0.3, alpha: 1) : SKColor(red: 0.9, green: 0.3, blue: 0.3, alpha: 1)
+                if isDisabled {
+                    dot.fillColor = SKColor(red: 0.6, green: 0.5, blue: 0.2, alpha: 0.8)
+                } else if isActive {
+                    dot.fillColor = SKColor(red: 0.3, green: 0.9, blue: 0.3, alpha: 1)
+                } else {
+                    dot.fillColor = SKColor(red: 0.9, green: 0.3, blue: 0.3, alpha: 1)
+                }
                 dot.strokeColor = .clear
                 dot.position = CGPoint(x: CGFloat(i) * 8 - CGFloat(workers - 1) * 4, y: -tileSize * 0.32)
                 container.addChild(dot)
             }
             
-            // Worker count badge
+            // Worker count badge (show count if >1)
             let badge = SKLabelNode(fontNamed: "Menlo-Bold")
-            badge.text = "👤"
-            badge.fontSize = tileSize * 0.2
-            badge.position = CGPoint(x: tileSize * 0.3, y: tileSize * 0.25)
+            badge.text = workers > 1 ? "👤×\(workers)" : "👤"
+            badge.fontSize = tileSize * 0.18
+            badge.position = CGPoint(x: tileSize * 0.25, y: tileSize * 0.28)
             badge.verticalAlignmentMode = .center
+            badge.horizontalAlignmentMode = .center
             container.addChild(badge)
         } else {
             container.isHidden = true

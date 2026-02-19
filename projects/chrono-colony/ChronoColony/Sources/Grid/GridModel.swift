@@ -88,7 +88,8 @@ final class GridModel {
     func assignWorker(at col: Int, row: Int, state: GameState) -> Bool {
         guard tiles[row][col].buildingType != nil else { return false }
         guard state.availableColonists > 0 else { return false }
-        guard tiles[row][col].assignedWorkers < 1 else { return false } // 1 worker max for now
+        guard let building = tiles[row][col].buildingType,
+              tiles[row][col].assignedWorkers < building.maxWorkers else { return false }
         tiles[row][col].assignedWorkers += 1
         state.assignedColonists += 1
         return true

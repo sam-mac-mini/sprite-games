@@ -49,7 +49,10 @@ enum BuildingType: String, CaseIterable, Identifiable {
     }
     
     // MARK: - Workers
-    var requiredWorkers: Int { 1 }
+    var maxWorkers: Int { 2 }
+    
+    /// Second worker efficiency (diminishing returns)
+    var secondWorkerEfficiency: Double { 0.6 }
     
     // MARK: - Demolish refund (partial)
     var demolishRefund: Double { metalCost * 0.5 }

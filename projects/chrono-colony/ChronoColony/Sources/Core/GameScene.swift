@@ -424,16 +424,24 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 showFloatingText("+\(Int(refund)) ⛏", at: col, row: row, color: .green)
             }
         } else if buildMenu.isAssignWorkerMode {
-            if let tile = gridModel.tile(at: col, row: row), tile.buildingType != nil {
-                if tile.assignedWorkers > 0 {
+            if let tile = gridModel.tile(at: col, row: row), let bType = tile.buildingType {
+                if tile.assignedWorkers >= bType.maxWorkers {
+                    // At max — remove a worker instead
                     gridModel.removeWorker(at: col, row: row, state: gameState)
                     showFloatingText("-1 👤", at: col, row: row, color: .orange)
                 } else if gameState.availableColonists > 0 {
+                    let wasWorkers = tile.assignedWorkers
                     gridModel.assignWorker(at: col, row: row, state: gameState)
-                    showFloatingText("+1 👤", at: col, row: row, color: .green)
+                    if wasWorkers == 0 {
+                        showFloatingText("+1 👤 Active!", at: col, row: row, color: .green)
+                    } else {
+                        showFloatingText("+1 👤 (60% eff)", at: col, row: row, color: SKColor(red: 0.5, green: 0.9, blue: 0.5, alpha: 1))
+                    }
                 } else {
                     showFloatingText("No workers", at: col, row: row, color: .red)
                 }
+            } else if let tile = gridModel.tile(at: col, row: row), tile.buildingType == nil, tile.assignedWorkers == 0 {
+                // Tapping empty tile in worker mode — no action
             }
         } else if buildMenu.isToggleMode {
             if let tile = gridModel.tile(at: col, row: row), tile.buildingType != nil {
@@ -549,59 +557,112 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     private func triggerCollapse() {
         gameState.phase = .collapse
         
-        // Camera shake
-        let shake = SKAction.sequence([
-            SKAction.moveBy(x: 4, y: -2, duration: 0.04),
-            SKAction.moveBy(x: -8, y: 4, duration: 0.04),
-            SKAction.moveBy(x: 6, y: -3, duration: 0.04),
-            SKAction.moveBy(x: -2, y: 1, duration: 0.04),
-        ])
+        // Dismiss any active event overlay
+        eventOverlay.dismiss()
+        eventSystem.isShowingEvent = false
+        
+        // Phase 1: Escalating camera shake (2 seconds)
+        let shakePhase1 = SKAction.customAction(withDuration: 2.0) { [weak self] _, elapsed in
+            guard let self = self else { return }
+            let intensity = elapsed / 2.0 * 6.0  // 0 → 6 pixels
+            let ox = CGFloat.random(in: -intensity...intensity)
+            let oy = CGFloat.random(in: -intensity...intensity)
+            self.cameraNode.position = CGPoint(
+                x: self.size.width / 2 + ox,
+                y: self.size.height / 2 + oy
+            )
+        }
+        
+        // Phase 2: Violent shake (1 second)
+        let shakePhase2 = SKAction.customAction(withDuration: 1.0) { [weak self] _, _ in
+            guard let self = self else { return }
+            let ox = CGFloat.random(in: -8...8)
+            let oy = CGFloat.random(in: -8...8)
+            self.cameraNode.position = CGPoint(
+                x: self.size.width / 2 + ox,
+                y: self.size.height / 2 + oy
+            )
+        }
+        
         cameraNode.run(SKAction.sequence([
-            SKAction.repeat(shake, count: 8),
+            shakePhase1,
+            shakePhase2,
             SKAction.run { [weak self] in
                 guard let self = self else { return }
                 self.cameraNode.position = CGPoint(x: self.size.width / 2, y: self.size.height / 2)
             }
         ]))
         
-        // Red flash
-        let flash = SKShapeNode(rectOf: CGSize(width: size.width * 2, height: size.height * 2))
-        flash.fillColor = SKColor.red.withAlphaComponent(0.4)
-        flash.strokeColor = .clear
-        flash.zPosition = 200
-        flash.alpha = 0
-        cameraNode.addChild(flash)
-        flash.name = "collapseEffect"
+        // Red flash — pulses 3 times, intensifying
+        for i in 0..<3 {
+            let flash = SKShapeNode(rectOf: CGSize(width: size.width * 2, height: size.height * 2))
+            flash.fillColor = SKColor.red.withAlphaComponent(0.15 + Double(i) * 0.15)
+            flash.strokeColor = .clear
+            flash.zPosition = 200
+            flash.alpha = 0
+            flash.name = "collapseEffect"
+            cameraNode.addChild(flash)
+            
+            flash.run(SKAction.sequence([
+                SKAction.wait(forDuration: Double(i) * 0.8),
+                SKAction.fadeIn(withDuration: 0.15),
+                SKAction.fadeOut(withDuration: 0.6),
+                i == 2 ? SKAction.removeFromParent() : SKAction.removeFromParent()
+            ]))
+        }
         
-        flash.run(SKAction.sequence([
-            SKAction.fadeIn(withDuration: 0.2),
-            SKAction.fadeOut(withDuration: 1.5),
-            SKAction.removeFromParent()
-        ]))
-        
-        // Collapse text
+        // "STELLAR COLLAPSE" text — dramatic entrance
         let label = SKLabelNode(fontNamed: "Menlo-Bold")
         label.text = "STELLAR COLLAPSE"
-        label.fontSize = 26
+        label.fontSize = 24
         label.fontColor = .red
-        label.position = .zero
+        label.position = CGPoint(x: 0, y: 20)
         label.zPosition = 201
-        label.setScale(0.3)
+        label.setScale(0.1)
         label.alpha = 0
         label.name = "collapseEffect"
         cameraNode.addChild(label)
         
+        // Subtitle
+        let subtitle = SKLabelNode(fontNamed: "Menlo")
+        subtitle.text = "The star has died."
+        subtitle.fontSize = 12
+        subtitle.fontColor = SKColor(red: 1, green: 0.6, blue: 0.5, alpha: 1)
+        subtitle.position = CGPoint(x: 0, y: -5)
+        subtitle.zPosition = 201
+        subtitle.alpha = 0
+        subtitle.name = "collapseEffect"
+        cameraNode.addChild(subtitle)
+        
         label.run(SKAction.sequence([
+            SKAction.wait(forDuration: 0.5),
             SKAction.group([
-                SKAction.scale(to: 1.0, duration: 0.4),
-                SKAction.fadeIn(withDuration: 0.2)
-            ]),
-            SKAction.wait(forDuration: 2.0),
-            SKAction.fadeOut(withDuration: 0.5),
-            SKAction.run { [weak self] in self?.showSummary() },
-            SKAction.removeFromParent()
+                SKAction.scale(to: 1.0, duration: 0.6),
+                SKAction.fadeIn(withDuration: 0.3)
+            ])
         ]))
         
+        subtitle.run(SKAction.sequence([
+            SKAction.wait(forDuration: 1.5),
+            SKAction.fadeIn(withDuration: 0.8)
+        ]))
+        
+        // Transition to summary after collapse sequence
+        run(SKAction.sequence([
+            SKAction.wait(forDuration: 3.5),
+            SKAction.run { [weak self] in
+                self?.cameraNode.children.filter { $0.name == "collapseEffect" }.forEach {
+                    $0.run(SKAction.sequence([
+                        SKAction.fadeOut(withDuration: 0.5),
+                        SKAction.removeFromParent()
+                    ]))
+                }
+            },
+            SKAction.wait(forDuration: 0.6),
+            SKAction.run { [weak self] in self?.showSummary() }
+        ]))
+        
+        // Grid collapse — buildings crumble outward from center
         gridRenderer.animateCollapse()
     }
     
@@ -614,11 +675,16 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         hudRenderer.hudNode.isHidden = true
         buildMenu.menuNode.isHidden = true
         
-        let buildingCount = gridModel.allBuildings().count
+        let buildings = gridModel.allBuildings()
+        let buildingCount = buildings.count
+        let activeCount = buildings.filter { $0.tile.isActive }.count
         let knowledgeFromResearch = Int(gameState.research * 0.3)
         let knowledgeFromBuildings = buildingCount * 5
+        let efficiencyBonus = activeCount * 3  // Reward for keeping buildings staffed
+        let survivalBonus = gameState.elapsedTime >= GameConstants.loopDuration ? 50 : 0  // Full loop bonus
+        let stabilityBonus = Int(gameState.stability * 0.2)  // Reward for ending with stability
         let timeBonus = Int(gameState.elapsedTime / 60) * 10
-        let total = knowledgeFromResearch + knowledgeFromBuildings + timeBonus
+        let total = knowledgeFromResearch + knowledgeFromBuildings + efficiencyBonus + survivalBonus + stabilityBonus + timeBonus
         
         // Full-screen opaque overlay
         let overlay = SKShapeNode(rectOf: CGSize(width: size.width * 2, height: size.height * 2))
@@ -629,8 +695,8 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         cameraNode.addChild(overlay)
         
         // Summary card
-        let cardWidth: CGFloat = size.width * 0.8
-        let cardHeight: CGFloat = 320
+        let cardWidth: CGFloat = size.width * 0.85
+        let cardHeight: CGFloat = 380
         let card = SKShapeNode(rectOf: CGSize(width: cardWidth, height: cardHeight), cornerRadius: 16)
         card.fillColor = SKColor(red: 0.08, green: 0.08, blue: 0.14, alpha: 1)
         card.strokeColor = SKColor(red: 0.2, green: 0.25, blue: 0.4, alpha: 1)
@@ -660,12 +726,16 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         // Stats
         let stats: [(String, String)] = [
             ("Research", "\(Int(gameState.research))"),
-            ("Buildings", "\(buildingCount)"),
+            ("Buildings", "\(buildingCount) (\(activeCount) active)"),
+            ("Stability", "\(Int(gameState.stability))%"),
             ("Survived", gameState.remainingTime < 1 ? "Full loop ✓" : "\(Int(gameState.elapsedTime))s"),
             ("", ""),
-            ("Research bonus", "+\(knowledgeFromResearch)"),
-            ("Building bonus", "+\(knowledgeFromBuildings)"),
-            ("Time bonus", "+\(timeBonus)"),
+            ("Research →", "+\(knowledgeFromResearch)"),
+            ("Buildings →", "+\(knowledgeFromBuildings)"),
+            ("Efficiency →", "+\(efficiencyBonus)"),
+            ("Stability →", "+\(stabilityBonus)"),
+            ("Time →", "+\(timeBonus)"),
+            (survivalBonus > 0 ? "Full loop! →" : "", survivalBonus > 0 ? "+\(survivalBonus)" : ""),
         ]
         
         let startY = cardHeight / 2 - 75

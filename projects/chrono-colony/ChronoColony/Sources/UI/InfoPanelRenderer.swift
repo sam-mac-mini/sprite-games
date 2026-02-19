@@ -46,7 +46,16 @@ final class InfoPanelRenderer {
         
         let prodText = "Produces: \(infoLines.joined(separator: "  "))"
         let costText = costLines.isEmpty ? "No upkeep" : "Costs: \(costLines.joined(separator: "  "))"
-        let workerText = "Workers: \(tile.assignedWorkers)/\(buildingType.requiredWorkers)  •  \(tile.isActive ? "✅ Active" : "⚠️ Needs worker")"
+        let effText: String
+        if tile.assignedWorkers >= 2 {
+            effText = "160% output"
+        } else if tile.assignedWorkers == 1 {
+            effText = "100% output"
+        } else {
+            effText = "⚠️ Needs worker"
+        }
+        let statusIcon = tile.isDisabled ? "⏸ Disabled" : (tile.isActive ? "✅ Active" : effText)
+        let workerText = "Workers: \(tile.assignedWorkers)/\(buildingType.maxWorkers)  •  \(statusIcon)"
         
         var lines = [prodText, costText, workerText]
         if hasBonus {
