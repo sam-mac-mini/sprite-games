@@ -3,24 +3,42 @@ import SpriteKit
 
 class GameViewController: UIViewController {
     
-    override func loadView() {
-        self.view = SKView()
-    }
+    private var gameView: SKView!
+    private var hasPresented = false
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        view.backgroundColor = .black
         
-        guard let skView = self.view as? SKView else { return }
+        // Create SKView as the full view
+        gameView = SKView(frame: view.bounds)
+        gameView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(gameView)
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        guard !hasPresented, gameView.bounds.width > 0, gameView.bounds.height > 0 else { return }
+        hasPresented = true
         
-        let scene = GameScene(size: skView.bounds.size)
+        let bounds = gameView.bounds
+        let safeInsets = view.safeAreaInsets
+        NSLog("📐 SKView bounds: \(bounds) safeArea: \(safeInsets)")
+        
+        // Create scene matching the view bounds
+        let scene = GameScene(size: bounds.size)
         scene.scaleMode = .resizeFill
         
-        skView.presentScene(scene)
-        skView.ignoresSiblingOrder = true
+        // Tell scene where the actual safe areas are
+        scene.safeTop = safeInsets.top
+        scene.safeBottom = safeInsets.bottom
+        
+        gameView.presentScene(scene)
+        gameView.ignoresSiblingOrder = true
         
         #if DEBUG
-        skView.showsFPS = true
-        skView.showsNodeCount = true
+        gameView.showsFPS = true
+        gameView.showsNodeCount = true
         #endif
     }
     

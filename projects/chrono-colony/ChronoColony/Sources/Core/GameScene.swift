@@ -13,53 +13,128 @@ class GameScene: SKScene, BuildMenuDelegate {
     private var gridRenderer: GridRenderer!
     private var hudRenderer: HUDRenderer!
     private var buildMenu: BuildMenuRenderer!
+    private var infoPanel: InfoPanelRenderer?
+    
+    // MARK: - Camera
+    private var cameraNode: SKCameraNode!
+    private var lastPanPoint: CGPoint?
+    private var isPanning = false
+    private let minZoom: CGFloat = 0.6
+    private let maxZoom: CGFloat = 2.0
     
     // MARK: - Timing
     private var lastTickTime: TimeInterval = 0
     private var tickAccumulator: TimeInterval = 0
     
+    // MARK: - Interaction State
+    private var selectedTilePos: (col: Int, row: Int)?
+    
+    // MARK: - Layers
+    private let worldNode = SKNode()
+    
+    // MARK: - Layout constants (set by GameViewController)
+    var safeTop: CGFloat = 59
+    var safeBottom: CGFloat = 34
+    
     // MARK: - Scene Setup
     
     override func didMove(to view: SKView) {
-        backgroundColor = SKColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 1)
+        backgroundColor = SKColor(red: 0.04, green: 0.04, blue: 0.07, alpha: 1)
+        
+        // safeTop/safeBottom set by GameViewController
+        // If scene fills full screen, these mark dynamic island / home indicator zones
+        // If scene is already within safe area, use minimal padding
+        if safeTop < 5 { safeTop = size.height * 0.07 }
+        if safeBottom < 5 { safeBottom = size.height * 0.04 }
+        
+        // Camera
+        cameraNode = SKCameraNode()
+        self.camera = cameraNode
+        addChild(cameraNode)
+        cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        
+        // World layer
+        addChild(worldNode)
         
         // Initialize systems
         gameState = GameState()
         gridModel = GridModel()
         resourceSystem = ResourceSystem()
-        
-        // Generate map
         gridModel.generateMap(rng: &gameState.rng)
         
-        // Grid renderer
+        // Layout zones — compact for small coordinate spaces
+        let hudHeight: CGFloat = 80
+        let buildMenuHeight: CGFloat = 70
+        let gridAreaTop = size.height - safeTop - hudHeight
+        let gridAreaBottom = safeBottom + buildMenuHeight
+        let gridAreaHeight = gridAreaTop - gridAreaBottom
+        let gridAreaWidth = size.width - 16
+        
+        // Tile size to fit
+        let fitW = gridAreaWidth / CGFloat(GameConstants.gridColumns)
+        let fitH = gridAreaHeight / CGFloat(GameConstants.gridRows)
+        let tileSize = floor(min(fitW, fitH))
+        
+        // Grid
         gridRenderer = GridRenderer(
             columns: GameConstants.gridColumns,
             rows: GameConstants.gridRows,
-            tileSize: GameConstants.tileSize
+            tileSize: tileSize
         )
-        addChild(gridRenderer.gridNode)
+        worldNode.addChild(gridRenderer.gridNode)
+        let gridCenterY = gridAreaBottom + gridAreaHeight / 2
+        gridRenderer.gridNode.position = CGPoint(x: size.width / 2, y: gridCenterY)
         
-        // Position grid slightly above center to make room for build menu
-        gridRenderer.gridNode.position = CGPoint(x: size.width / 2, y: size.height / 2 + 20)
+        // HUD (attached to camera)
+        hudRenderer = HUDRenderer(sceneSize: size, safeTop: safeTop)
+        cameraNode.addChild(hudRenderer.hudNode)
         
-        // HUD
-        hudRenderer = HUDRenderer(sceneSize: size)
-        hudRenderer.hudNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
-        addChild(hudRenderer.hudNode)
-        
-        // Build menu
+        // Build menu (attached to camera)
         buildMenu = BuildMenuRenderer(sceneSize: size)
-        buildMenu.menuNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
         buildMenu.delegate = self
-        addChild(buildMenu.menuNode)
+        cameraNode.addChild(buildMenu.menuNode)
         
-        // Start the loop
+        // Start
         gameState.phase = .expansion
-        
-        // Initial render
-        gridRenderer.update(from: gridModel)
+        gridRenderer.update(from: gridModel, state: gameState)
         hudRenderer.update(state: gameState)
         buildMenu.updateAffordability(state: gameState)
+        
+        showTutorialHint()
+        
+        // Pinch gesture
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        view.addGestureRecognizer(pinch)
+    }
+    
+    // MARK: - Tutorial
+    
+    private func showTutorialHint() {
+        let hint = SKLabelNode(fontNamed: "Menlo")
+        hint.text = "Select a building, then tap grid"
+        hint.fontSize = 11
+        hint.fontColor = SKColor(white: 0.5, alpha: 1)
+        hint.position = CGPoint(x: 0, y: -size.height / 2 + 80)
+        hint.zPosition = 90
+        hint.name = "tutorial"
+        cameraNode.addChild(hint)
+        
+        hint.run(SKAction.sequence([
+            SKAction.wait(forDuration: 6),
+            SKAction.fadeOut(withDuration: 1),
+            SKAction.removeFromParent()
+        ]))
+    }
+    
+    // MARK: - Camera
+    
+    @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        guard let camera = self.camera else { return }
+        if gesture.state == .changed {
+            let newScale = camera.xScale / gesture.scale
+            camera.setScale(min(maxZoom, max(minZoom, newScale)))
+            gesture.scale = 1.0
+        }
     }
     
     // MARK: - Game Loop
@@ -67,82 +142,209 @@ class GameScene: SKScene, BuildMenuDelegate {
     override func update(_ currentTime: TimeInterval) {
         guard gameState.phase != .collapse && gameState.phase != .summary else { return }
         
-        // Delta time
         if lastTickTime == 0 { lastTickTime = currentTime }
-        let dt = currentTime - lastTickTime
+        let dt = min(currentTime - lastTickTime, 0.1)
         lastTickTime = currentTime
         
-        // Advance game time
         gameState.elapsedTime += dt
         
-        // Phase transitions
         if gameState.elapsedTime >= GameConstants.loopDuration {
             triggerCollapse()
             return
         } else if gameState.elapsedTime >= GameConstants.escalationStart && gameState.phase == .expansion {
             gameState.phase = .escalation
+            showEscalationWarning()
         }
         
-        // Stability death check
         if gameState.stability <= 0 {
             triggerCollapse()
             return
         }
         
-        // Simulation tick (1/sec)
         tickAccumulator += dt
         if tickAccumulator >= GameConstants.simulationTickRate {
             tickAccumulator -= GameConstants.simulationTickRate
             resourceSystem.tick(grid: gridModel, state: gameState)
         }
         
-        // Update visuals
-        gridRenderer.update(from: gridModel)
+        gridRenderer.update(from: gridModel, state: gameState)
         hudRenderer.update(state: gameState)
         buildMenu.updateAffordability(state: gameState)
+    }
+    
+    private func showEscalationWarning() {
+        let warning = SKLabelNode(fontNamed: "Menlo-Bold")
+        warning.text = "⚠ STELLAR INSTABILITY ⚠"
+        warning.fontSize = 15
+        warning.fontColor = .orange
+        warning.position = CGPoint(x: 0, y: 0)
+        warning.zPosition = 200
+        warning.setScale(0.5)
+        cameraNode.addChild(warning)
+        
+        warning.run(SKAction.sequence([
+            SKAction.scale(to: 1.0, duration: 0.4),
+            SKAction.wait(forDuration: 2.0),
+            SKAction.fadeOut(withDuration: 1.0),
+            SKAction.removeFromParent()
+        ]))
     }
     
     // MARK: - Touch Input
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
         
-        // Check build menu first
-        if buildMenu.handleTap(at: location) {
+        // Summary screen — only check restart button
+        if gameState.phase == .summary {
             return
         }
         
-        // Check grid tap
-        let gridLocal = touch.location(in: gridRenderer.gridNode)
+        let uiLocation = touch.location(in: cameraNode)
+        
+        // Build menu
+        if buildMenu.handleTap(at: uiLocation) {
+            return
+        }
+        
+        // Dismiss info panel
+        if let panel = infoPanel {
+            panel.dismiss()
+            infoPanel = nil
+        }
+        
+        lastPanPoint = touch.location(in: self)
+        isPanning = false
+    }
+    
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard gameState.phase != .summary else { return }
+        guard let touch = touches.first, let lastPoint = lastPanPoint else { return }
+        let currentPoint = touch.location(in: self)
+        let dx = currentPoint.x - lastPoint.x
+        let dy = currentPoint.y - lastPoint.y
+        
+        if !isPanning && (abs(dx) > 5 || abs(dy) > 5) {
+            isPanning = true
+        }
+        
+        if isPanning, let camera = self.camera {
+            camera.position.x -= dx
+            camera.position.y -= dy
+        }
+        
+        lastPanPoint = currentPoint
+    }
+    
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        
+        // Summary — check restart
+        if gameState.phase == .summary {
+            let loc = touch.location(in: cameraNode)
+            if let restart = cameraNode.childNode(withName: "restartButton"), restart.contains(loc) {
+                restartLoop()
+            }
+            return
+        }
+        
+        if isPanning {
+            isPanning = false
+            lastPanPoint = nil
+            return
+        }
+        lastPanPoint = nil
+        
+        let worldLocation = touch.location(in: worldNode)
+        let gridLocal = gridRenderer.gridNode.convert(worldLocation, from: worldNode)
+        
         if let pos = gridRenderer.gridPosition(from: gridLocal) {
             handleGridTap(col: pos.col, row: pos.row)
         }
     }
     
     private func handleGridTap(col: Int, row: Int) {
+        cameraNode.childNode(withName: "tutorial")?.removeFromParent()
+        
         if let buildingType = buildMenu.selectedBuildingType {
-            // Place building
             if gridModel.placeBuilding(buildingType, at: col, row: row, state: gameState) {
-                gridRenderer.highlightTile(col: col, row: row)
-                // Auto-assign worker if available
+                gridRenderer.highlightTile(col: col, row: row, color: .green)
                 if gameState.availableColonists > 0 {
                     gridModel.assignWorker(at: col, row: row, state: gameState)
                 }
+                showFloatingText("-\(Int(buildingType.metalCost)) ⛏", at: col, row: row, color: .orange)
+                gridRenderer.animatePlacement(col: col, row: row)
+            } else {
+                gridRenderer.highlightTile(col: col, row: row, color: .red)
+                if let tile = gridModel.tile(at: col, row: row), tile.content != .empty {
+                    showFloatingText("Occupied", at: col, row: row, color: .red)
+                } else {
+                    showFloatingText("Can't afford", at: col, row: row, color: .red)
+                }
             }
         } else if buildMenu.isDemolishMode {
-            // Demolish
-            gridModel.demolishBuilding(at: col, row: row, state: gameState)
-        } else if buildMenu.isAssignWorkerMode {
-            // Toggle worker
-            if let tile = gridModel.tile(at: col, row: row), tile.assignedWorkers > 0 {
-                gridModel.removeWorker(at: col, row: row, state: gameState)
-            } else {
-                gridModel.assignWorker(at: col, row: row, state: gameState)
+            if let tile = gridModel.tile(at: col, row: row), tile.buildingType != nil {
+                let refund = tile.buildingType!.demolishRefund
+                gridModel.demolishBuilding(at: col, row: row, state: gameState)
+                gridRenderer.highlightTile(col: col, row: row, color: .orange)
+                showFloatingText("+\(Int(refund)) ⛏", at: col, row: row, color: .green)
             }
+        } else if buildMenu.isAssignWorkerMode {
+            if let tile = gridModel.tile(at: col, row: row), tile.buildingType != nil {
+                if tile.assignedWorkers > 0 {
+                    gridModel.removeWorker(at: col, row: row, state: gameState)
+                    showFloatingText("-1 👤", at: col, row: row, color: .orange)
+                } else if gameState.availableColonists > 0 {
+                    gridModel.assignWorker(at: col, row: row, state: gameState)
+                    showFloatingText("+1 👤", at: col, row: row, color: .green)
+                } else {
+                    showFloatingText("No workers", at: col, row: row, color: .red)
+                }
+            }
+        } else {
+            // No mode — show building info
+            if let tile = gridModel.tile(at: col, row: row), let bt = tile.buildingType {
+                showBuildingInfo(type: bt, tile: tile)
+            }
+            selectedTilePos = (col, row)
+            gridRenderer.selectTile(col: col, row: row)
         }
         
-        gridRenderer.update(from: gridModel)
+        gridRenderer.update(from: gridModel, state: gameState)
+    }
+    
+    // MARK: - Floating Text
+    
+    private func showFloatingText(_ text: String, at col: Int, row: Int, color: SKColor) {
+        guard let worldPos = gridRenderer.worldPosition(col: col, row: row) else { return }
+        
+        let label = SKLabelNode(fontNamed: "Menlo-Bold")
+        label.text = text
+        label.fontSize = 13
+        label.fontColor = color
+        label.position = worldPos
+        label.zPosition = 50
+        worldNode.addChild(label)
+        
+        label.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.moveBy(x: 0, y: 35, duration: 0.7),
+                SKAction.sequence([
+                    SKAction.wait(forDuration: 0.3),
+                    SKAction.fadeOut(withDuration: 0.4)
+                ])
+            ]),
+            SKAction.removeFromParent()
+        ]))
+    }
+    
+    // MARK: - Building Info
+    
+    private func showBuildingInfo(type: BuildingType, tile: Tile) {
+        infoPanel?.dismiss()
+        let panel = InfoPanelRenderer(buildingType: type, tile: tile, sceneSize: size)
+        cameraNode.addChild(panel.node)
+        infoPanel = panel
     }
     
     // MARK: - Collapse
@@ -150,79 +352,231 @@ class GameScene: SKScene, BuildMenuDelegate {
     private func triggerCollapse() {
         gameState.phase = .collapse
         
-        // Flash screen red
-        let flash = SKShapeNode(rectOf: size)
-        flash.position = CGPoint(x: size.width / 2, y: size.height / 2)
-        flash.fillColor = SKColor.red.withAlphaComponent(0.5)
+        // Camera shake
+        let shake = SKAction.sequence([
+            SKAction.moveBy(x: 4, y: -2, duration: 0.04),
+            SKAction.moveBy(x: -8, y: 4, duration: 0.04),
+            SKAction.moveBy(x: 6, y: -3, duration: 0.04),
+            SKAction.moveBy(x: -2, y: 1, duration: 0.04),
+        ])
+        cameraNode.run(SKAction.sequence([
+            SKAction.repeat(shake, count: 8),
+            SKAction.run { [weak self] in
+                guard let self = self else { return }
+                self.cameraNode.position = CGPoint(x: self.size.width / 2, y: self.size.height / 2)
+            }
+        ]))
+        
+        // Red flash
+        let flash = SKShapeNode(rectOf: CGSize(width: size.width * 2, height: size.height * 2))
+        flash.fillColor = SKColor.red.withAlphaComponent(0.4)
         flash.strokeColor = .clear
         flash.zPosition = 200
-        addChild(flash)
+        flash.alpha = 0
+        cameraNode.addChild(flash)
+        flash.name = "collapseEffect"
         
         flash.run(SKAction.sequence([
+            SKAction.fadeIn(withDuration: 0.2),
             SKAction.fadeOut(withDuration: 1.5),
             SKAction.removeFromParent()
         ]))
         
-        // Show collapse label
-        let collapseLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-        collapseLabel.text = "STELLAR COLLAPSE"
-        collapseLabel.fontSize = 28
-        collapseLabel.fontColor = .red
-        collapseLabel.position = CGPoint(x: size.width / 2, y: size.height / 2)
-        collapseLabel.zPosition = 201
-        collapseLabel.setScale(0.1)
-        addChild(collapseLabel)
+        // Collapse text
+        let label = SKLabelNode(fontNamed: "Menlo-Bold")
+        label.text = "STELLAR COLLAPSE"
+        label.fontSize = 26
+        label.fontColor = .red
+        label.position = .zero
+        label.zPosition = 201
+        label.setScale(0.3)
+        label.alpha = 0
+        label.name = "collapseEffect"
+        cameraNode.addChild(label)
         
-        collapseLabel.run(SKAction.sequence([
-            SKAction.scale(to: 1.0, duration: 0.5),
+        label.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 1.0, duration: 0.4),
+                SKAction.fadeIn(withDuration: 0.2)
+            ]),
             SKAction.wait(forDuration: 2.0),
-            SKAction.fadeOut(withDuration: 1.0),
-            SKAction.run { [weak self] in
-                self?.showSummary()
-            },
+            SKAction.fadeOut(withDuration: 0.5),
+            SKAction.run { [weak self] in self?.showSummary() },
             SKAction.removeFromParent()
         ]))
+        
+        gridRenderer.animateCollapse()
     }
+    
+    // MARK: - Summary
     
     private func showSummary() {
         gameState.phase = .summary
         
-        let knowledgeEarned = Int(gameState.research * 0.3 + Double(gridModel.allBuildings().count) * 5)
+        // *** Hide game UI ***
+        hudRenderer.hudNode.isHidden = true
+        buildMenu.menuNode.isHidden = true
         
-        let summaryLabel = SKLabelNode(fontNamed: "Menlo")
-        summaryLabel.text = "Knowledge earned: +\(knowledgeEarned)"
-        summaryLabel.fontSize = 18
-        summaryLabel.fontColor = SKColor(red: 0.5, green: 0.8, blue: 1, alpha: 1)
-        summaryLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 + 20)
-        summaryLabel.zPosition = 201
-        addChild(summaryLabel)
+        let buildingCount = gridModel.allBuildings().count
+        let knowledgeFromResearch = Int(gameState.research * 0.3)
+        let knowledgeFromBuildings = buildingCount * 5
+        let timeBonus = Int(gameState.elapsedTime / 60) * 10
+        let total = knowledgeFromResearch + knowledgeFromBuildings + timeBonus
         
-        let restartLabel = SKLabelNode(fontNamed: "Menlo")
-        restartLabel.text = "Tap to start new loop"
-        restartLabel.fontSize = 14
+        // Full-screen opaque overlay
+        let overlay = SKShapeNode(rectOf: CGSize(width: size.width * 2, height: size.height * 2))
+        overlay.fillColor = SKColor(red: 0.03, green: 0.03, blue: 0.06, alpha: 0.92)
+        overlay.strokeColor = .clear
+        overlay.zPosition = 300
+        overlay.name = "summary"
+        cameraNode.addChild(overlay)
+        
+        // Summary card
+        let cardWidth: CGFloat = size.width * 0.8
+        let cardHeight: CGFloat = 320
+        let card = SKShapeNode(rectOf: CGSize(width: cardWidth, height: cardHeight), cornerRadius: 16)
+        card.fillColor = SKColor(red: 0.08, green: 0.08, blue: 0.14, alpha: 1)
+        card.strokeColor = SKColor(red: 0.2, green: 0.25, blue: 0.4, alpha: 1)
+        card.lineWidth = 1.5
+        card.position = CGPoint(x: 0, y: 20)
+        card.zPosition = 301
+        card.name = "summary"
+        cameraNode.addChild(card)
+        
+        // Title
+        let title = SKLabelNode(fontNamed: "Menlo-Bold")
+        title.text = "LOOP COMPLETE"
+        title.fontSize = 22
+        title.fontColor = SKColor(red: 0.4, green: 0.75, blue: 1, alpha: 1)
+        title.position = CGPoint(x: 0, y: cardHeight / 2 - 40)
+        title.zPosition = 1
+        card.addChild(title)
+        
+        // Divider
+        let divider = SKShapeNode(rectOf: CGSize(width: cardWidth - 40, height: 1))
+        divider.fillColor = SKColor(white: 0.2, alpha: 1)
+        divider.strokeColor = .clear
+        divider.position = CGPoint(x: 0, y: cardHeight / 2 - 55)
+        divider.zPosition = 1
+        card.addChild(divider)
+        
+        // Stats
+        let stats: [(String, String)] = [
+            ("Research", "\(Int(gameState.research))"),
+            ("Buildings", "\(buildingCount)"),
+            ("Survived", gameState.remainingTime < 1 ? "Full loop ✓" : "\(Int(gameState.elapsedTime))s"),
+            ("", ""),
+            ("Research bonus", "+\(knowledgeFromResearch)"),
+            ("Building bonus", "+\(knowledgeFromBuildings)"),
+            ("Time bonus", "+\(timeBonus)"),
+        ]
+        
+        let startY = cardHeight / 2 - 75
+        for (i, stat) in stats.enumerated() {
+            if stat.0.isEmpty { continue }
+            
+            let nameLabel = SKLabelNode(fontNamed: "Menlo")
+            nameLabel.text = stat.0
+            nameLabel.fontSize = 13
+            nameLabel.fontColor = SKColor(white: 0.6, alpha: 1)
+            nameLabel.position = CGPoint(x: -cardWidth / 2 + 30, y: startY - CGFloat(i) * 24)
+            nameLabel.horizontalAlignmentMode = .left
+            nameLabel.zPosition = 1
+            card.addChild(nameLabel)
+            
+            let valueLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+            valueLabel.text = stat.1
+            valueLabel.fontSize = 13
+            valueLabel.fontColor = .white
+            valueLabel.position = CGPoint(x: cardWidth / 2 - 30, y: startY - CGFloat(i) * 24)
+            valueLabel.horizontalAlignmentMode = .right
+            valueLabel.zPosition = 1
+            card.addChild(valueLabel)
+            
+            // Stagger in
+            nameLabel.alpha = 0
+            valueLabel.alpha = 0
+            let delay = Double(i) * 0.1
+            nameLabel.run(SKAction.sequence([SKAction.wait(forDuration: delay), SKAction.fadeIn(withDuration: 0.2)]))
+            valueLabel.run(SKAction.sequence([SKAction.wait(forDuration: delay), SKAction.fadeIn(withDuration: 0.2)]))
+        }
+        
+        // Total divider
+        let totalDivider = SKShapeNode(rectOf: CGSize(width: cardWidth - 40, height: 1))
+        totalDivider.fillColor = SKColor(red: 0.4, green: 0.75, blue: 1, alpha: 0.4)
+        totalDivider.strokeColor = .clear
+        totalDivider.position = CGPoint(x: 0, y: startY - CGFloat(stats.count) * 24 + 10)
+        totalDivider.zPosition = 1
+        card.addChild(totalDivider)
+        
+        // Total
+        let totalLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+        totalLabel.text = "Total Knowledge"
+        totalLabel.fontSize = 14
+        totalLabel.fontColor = SKColor(red: 0.4, green: 0.75, blue: 1, alpha: 1)
+        totalLabel.position = CGPoint(x: -cardWidth / 2 + 30, y: startY - CGFloat(stats.count) * 24 - 12)
+        totalLabel.horizontalAlignmentMode = .left
+        totalLabel.zPosition = 1
+        card.addChild(totalLabel)
+        
+        let totalValue = SKLabelNode(fontNamed: "Menlo-Bold")
+        totalValue.text = "+\(total)"
+        totalValue.fontSize = 18
+        totalValue.fontColor = SKColor(red: 0.4, green: 0.9, blue: 1, alpha: 1)
+        totalValue.position = CGPoint(x: cardWidth / 2 - 30, y: startY - CGFloat(stats.count) * 24 - 12)
+        totalValue.horizontalAlignmentMode = .right
+        totalValue.zPosition = 1
+        card.addChild(totalValue)
+        
+        // Restart button
+        let btnY = -cardHeight / 2 + 35
+        let restartBg = SKShapeNode(rectOf: CGSize(width: 180, height: 42), cornerRadius: 12)
+        restartBg.fillColor = SKColor(red: 0.15, green: 0.4, blue: 0.7, alpha: 1)
+        restartBg.strokeColor = SKColor(red: 0.25, green: 0.55, blue: 0.9, alpha: 1)
+        restartBg.lineWidth = 1.5
+        restartBg.position = CGPoint(x: 0, y: btnY)
+        restartBg.zPosition = 1
+        restartBg.name = "restartButtonInner"
+        card.addChild(restartBg)
+        
+        let restartLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+        restartLabel.text = "NEW LOOP"
+        restartLabel.fontSize = 15
         restartLabel.fontColor = .white
-        restartLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 - 20)
-        restartLabel.zPosition = 201
-        restartLabel.name = "restart"
-        addChild(restartLabel)
+        restartLabel.verticalAlignmentMode = .center
+        restartBg.addChild(restartLabel)
         
-        // Pulse the restart label
-        restartLabel.run(SKAction.repeatForever(SKAction.sequence([
-            SKAction.fadeAlpha(to: 0.4, duration: 0.8),
-            SKAction.fadeAlpha(to: 1.0, duration: 0.8)
-        ])))
-    }
-    
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard gameState.phase == .summary else { return }
-        restartLoop()
+        // The actual hit target (in camera space, matching card position)
+        let hitTarget = SKShapeNode(rectOf: CGSize(width: 180, height: 42))
+        hitTarget.fillColor = .clear
+        hitTarget.strokeColor = .clear
+        hitTarget.position = CGPoint(x: 0, y: 20 + btnY) // card.position.y + btnY
+        hitTarget.zPosition = 302
+        hitTarget.name = "restartButton"
+        cameraNode.addChild(hitTarget)
+        
+        // Animate card in
+        card.setScale(0.9)
+        card.alpha = 0
+        card.run(SKAction.group([
+            SKAction.scale(to: 1.0, duration: 0.3),
+            SKAction.fadeIn(withDuration: 0.3)
+        ]))
     }
     
     private func restartLoop() {
-        // Remove summary UI
-        children.filter { $0.zPosition >= 201 }.forEach { $0.removeFromParent() }
+        // Remove all summary nodes
+        cameraNode.children.filter { $0.name == "summary" || $0.name == "restartButton" || $0.name == "collapseEffect" }.forEach { $0.removeFromParent() }
         
-        // Reset state with new seed
+        // Show game UI again
+        hudRenderer.hudNode.isHidden = false
+        buildMenu.menuNode.isHidden = false
+        
+        // Reset camera
+        cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        cameraNode.setScale(1.0)
+        
+        // Reset state
         gameState = GameState()
         gridModel = GridModel()
         gridModel.generateMap(rng: &gameState.rng)
@@ -230,7 +584,7 @@ class GameScene: SKScene, BuildMenuDelegate {
         lastTickTime = 0
         tickAccumulator = 0
         
-        gridRenderer.update(from: gridModel)
+        gridRenderer.update(from: gridModel, state: gameState)
         hudRenderer.update(state: gameState)
         buildMenu.clearSelection()
         buildMenu.updateAffordability(state: gameState)
@@ -239,9 +593,11 @@ class GameScene: SKScene, BuildMenuDelegate {
     // MARK: - BuildMenuDelegate
     
     func buildMenuDidSelect(buildingType: BuildingType) {
-        // Could show placement preview in the future
+        gridRenderer.clearSelection()
+        infoPanel?.dismiss()
+        infoPanel = nil
     }
     
-    func buildMenuDidSelectDemolish() {}
-    func buildMenuDidSelectAssignWorker() {}
+    func buildMenuDidSelectDemolish() { gridRenderer.clearSelection() }
+    func buildMenuDidSelectAssignWorker() { gridRenderer.clearSelection() }
 }

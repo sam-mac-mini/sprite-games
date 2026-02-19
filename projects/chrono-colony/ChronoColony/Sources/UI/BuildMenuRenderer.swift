@@ -14,7 +14,8 @@ final class BuildMenuRenderer {
     
     private var buttons: [SKShapeNode] = []
     private var selectedIndex: Int? = nil
-    private let buttonSize: CGFloat = 64
+    private var buttonSize: CGFloat = 46
+    private var buttonSpacing: CGFloat = 4
     
     var selectedBuildingType: BuildingType? {
         guard let idx = selectedIndex, idx < BuildingType.allCases.count else { return nil }
@@ -34,10 +35,26 @@ final class BuildMenuRenderer {
         menuNode.name = "buildMenu"
         menuNode.zPosition = 100
         
-        let bottomY = -sceneSize.height / 2 + 50
+        // Adapt button size to screen width
         let allItems = BuildingType.allCases.count + 2 // +demolish +assign
-        let totalWidth = CGFloat(allItems) * (buttonSize + 8)
+        let maxWidth = sceneSize.width - 20
+        let idealTotal = CGFloat(allItems) * buttonSize + CGFloat(allItems - 1) * buttonSpacing
+        if idealTotal > maxWidth {
+            buttonSize = (maxWidth - CGFloat(allItems - 1) * buttonSpacing) / CGFloat(allItems)
+        }
+        
+        let bottomY = -sceneSize.height / 2 + 50
+        let totalWidth = CGFloat(allItems) * buttonSize + CGFloat(allItems - 1) * buttonSpacing
         let startX = -totalWidth / 2 + buttonSize / 2
+        
+        // Background panel
+        let bgPanel = SKShapeNode(rectOf: CGSize(width: totalWidth + 24, height: buttonSize + 24), cornerRadius: 14)
+        bgPanel.fillColor = SKColor(red: 0.06, green: 0.06, blue: 0.1, alpha: 0.95)
+        bgPanel.strokeColor = SKColor(red: 0.15, green: 0.18, blue: 0.28, alpha: 0.8)
+        bgPanel.lineWidth = 1
+        bgPanel.position = CGPoint(x: 0, y: bottomY)
+        bgPanel.zPosition = -1
+        menuNode.addChild(bgPanel)
         
         // Building buttons
         for (i, type) in BuildingType.allCases.enumerated() {
@@ -45,7 +62,7 @@ final class BuildMenuRenderer {
                 symbol: type.symbol,
                 subtitle: "\(Int(type.metalCost))⛏",
                 color: type.color,
-                x: startX + CGFloat(i) * (buttonSize + 8),
+                x: startX + CGFloat(i) * (buttonSize + buttonSpacing),
                 y: bottomY
             )
             btn.name = "build_\(i)"
@@ -59,7 +76,7 @@ final class BuildMenuRenderer {
             symbol: "🗑",
             subtitle: "Demo",
             color: SKColor(red: 0.6, green: 0.2, blue: 0.2, alpha: 1),
-            x: startX + CGFloat(demolishIdx) * (buttonSize + 8),
+            x: startX + CGFloat(demolishIdx) * (buttonSize + buttonSpacing),
             y: bottomY
         )
         demolishBtn.name = "build_\(demolishIdx)"
@@ -72,7 +89,7 @@ final class BuildMenuRenderer {
             symbol: "👤",
             subtitle: "Staff",
             color: SKColor(red: 0.2, green: 0.5, blue: 0.2, alpha: 1),
-            x: startX + CGFloat(workerIdx) * (buttonSize + 8),
+            x: startX + CGFloat(workerIdx) * (buttonSize + buttonSpacing),
             y: bottomY
         )
         workerBtn.name = "build_\(workerIdx)"
@@ -81,9 +98,8 @@ final class BuildMenuRenderer {
     }
     
     func handleTap(at point: CGPoint) -> Bool {
-        let localPoint = menuNode.convert(point, from: menuNode.scene!)
-        
         for (i, btn) in buttons.enumerated() {
+            let localPoint = btn.convert(point, from: menuNode)
             if btn.contains(localPoint) {
                 selectButton(i)
                 return true
@@ -95,7 +111,7 @@ final class BuildMenuRenderer {
     private func selectButton(_ index: Int) {
         // Deselect previous
         if let prev = selectedIndex {
-            buttons[prev].strokeColor = SKColor(red: 0.3, green: 0.3, blue: 0.4, alpha: 1)
+            buttons[prev].strokeColor = SKColor(red: 0.25, green: 0.25, blue: 0.35, alpha: 1)
             buttons[prev].lineWidth = 1
         }
         
@@ -121,31 +137,31 @@ final class BuildMenuRenderer {
     
     func clearSelection() {
         if let prev = selectedIndex {
-            buttons[prev].strokeColor = SKColor(red: 0.3, green: 0.3, blue: 0.4, alpha: 1)
+            buttons[prev].strokeColor = SKColor(red: 0.25, green: 0.25, blue: 0.35, alpha: 1)
             buttons[prev].lineWidth = 1
         }
         selectedIndex = nil
     }
     
     private func makeButton(symbol: String, subtitle: String, color: SKColor, x: CGFloat, y: CGFloat) -> SKShapeNode {
-        let btn = SKShapeNode(rectOf: CGSize(width: buttonSize, height: buttonSize), cornerRadius: 8)
+        let btn = SKShapeNode(rectOf: CGSize(width: buttonSize, height: buttonSize), cornerRadius: 10)
         btn.position = CGPoint(x: x, y: y)
-        btn.fillColor = color.withAlphaComponent(0.3)
-        btn.strokeColor = SKColor(red: 0.3, green: 0.3, blue: 0.4, alpha: 1)
+        btn.fillColor = color.withAlphaComponent(0.25)
+        btn.strokeColor = SKColor(red: 0.25, green: 0.25, blue: 0.35, alpha: 1)
         btn.lineWidth = 1
         
         let symbolLabel = SKLabelNode(text: symbol)
-        symbolLabel.fontSize = 24
+        symbolLabel.fontSize = 22
         symbolLabel.verticalAlignmentMode = .center
-        symbolLabel.position = CGPoint(x: 0, y: 6)
+        symbolLabel.position = CGPoint(x: 0, y: 5)
         btn.addChild(symbolLabel)
         
         let costLabel = SKLabelNode(fontNamed: "Menlo")
         costLabel.text = subtitle
-        costLabel.fontSize = 10
-        costLabel.fontColor = SKColor(red: 0.7, green: 0.7, blue: 0.8, alpha: 1)
+        costLabel.fontSize = 9
+        costLabel.fontColor = SKColor(white: 0.6, alpha: 1)
         costLabel.verticalAlignmentMode = .center
-        costLabel.position = CGPoint(x: 0, y: -18)
+        costLabel.position = CGPoint(x: 0, y: -16)
         btn.addChild(costLabel)
         
         return btn
