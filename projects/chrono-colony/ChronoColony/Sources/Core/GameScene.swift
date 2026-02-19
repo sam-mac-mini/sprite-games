@@ -41,11 +41,7 @@ class GameScene: SKScene, BuildMenuDelegate {
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(red: 0.04, green: 0.04, blue: 0.07, alpha: 1)
         
-        // safeTop/safeBottom set by GameViewController
-        // If scene fills full screen, these mark dynamic island / home indicator zones
-        // If scene is already within safe area, use minimal padding
-        if safeTop < 5 { safeTop = size.height * 0.07 }
-        if safeBottom < 5 { safeBottom = size.height * 0.04 }
+        // safeTop/safeBottom set by GameViewController from actual device safe areas
         
         // Camera
         cameraNode = SKCameraNode()
@@ -62,18 +58,19 @@ class GameScene: SKScene, BuildMenuDelegate {
         resourceSystem = ResourceSystem()
         gridModel.generateMap(rng: &gameState.rng)
         
-        // Layout zones — compact for small coordinate spaces
-        let hudHeight: CGFloat = 80
-        let buildMenuHeight: CGFloat = 70
-        let gridAreaTop = size.height - safeTop - hudHeight
-        let gridAreaBottom = safeBottom + buildMenuHeight
+        // Layout zones — scale to screen
+        let hudHeight: CGFloat = size.height > 600 ? 100 : 80
+        let buildMenuHeight: CGFloat = size.height > 600 ? 80 : 70
+        let gridPaddingV: CGFloat = 4
+        let gridAreaTop = size.height - safeTop - hudHeight - gridPaddingV
+        let gridAreaBottom = safeBottom + buildMenuHeight + gridPaddingV
         let gridAreaHeight = gridAreaTop - gridAreaBottom
-        let gridAreaWidth = size.width - 16
+        // Use nearly full width so tiles are as large as possible
+        let gridAreaWidth = size.width - 8
         
-        // Tile size to fit
-        let fitW = gridAreaWidth / CGFloat(GameConstants.gridColumns)
-        let fitH = gridAreaHeight / CGFloat(GameConstants.gridRows)
-        let tileSize = floor(min(fitW, fitH))
+        // Tile size — use WIDTH as the constraint (grid is square, screen is tall)
+        let tileSize = floor(gridAreaWidth / CGFloat(GameConstants.gridColumns))
+        let gridHeight = tileSize * CGFloat(GameConstants.gridRows)
         
         // Grid
         gridRenderer = GridRenderer(
@@ -82,8 +79,18 @@ class GameScene: SKScene, BuildMenuDelegate {
             tileSize: tileSize
         )
         worldNode.addChild(gridRenderer.gridNode)
-        let gridCenterY = gridAreaBottom + gridAreaHeight / 2
+        
+        // Anchor grid directly below HUD — no gap
+        let gridTopY = gridAreaTop
+        let gridCenterY = gridTopY - gridHeight / 2
         gridRenderer.gridNode.position = CGPoint(x: size.width / 2, y: gridCenterY)
+        
+        // Use remaining space below grid for status/event area
+        let gridBottomY = gridCenterY - gridHeight / 2
+        let extraSpace = gridBottomY - gridAreaBottom
+        if extraSpace > 40 {
+            addStatusArea(y: gridBottomY - extraSpace / 2, width: gridAreaWidth, height: extraSpace - 8)
+        }
         
         // HUD (attached to camera)
         hudRenderer = HUDRenderer(sceneSize: size, safeTop: safeTop)
@@ -107,6 +114,86 @@ class GameScene: SKScene, BuildMenuDelegate {
         view.addGestureRecognizer(pinch)
     }
     
+    // MARK: - Status Area (uses extra vertical space below grid)
+    
+    private func addStatusArea(y: CGFloat, width: CGFloat, height: CGFloat = 50) {
+        let panelH = min(height, 120)
+        let panel = SKShapeNode(rectOf: CGSize(width: width - 4, height: panelH), cornerRadius: 10)
+        panel.fillColor = SKColor(red: 0.06, green: 0.06, blue: 0.1, alpha: 0.9)
+        panel.strokeColor = SKColor(red: 0.12, green: 0.15, blue: 0.22, alpha: 0.5)
+        panel.lineWidth = 1
+        panel.position = CGPoint(x: size.width / 2, y: y)
+        panel.zPosition = 5
+        panel.name = "statusArea"
+        addChild(panel)
+        
+        // Production summary
+        let prodTitle = SKLabelNode(fontNamed: "Menlo-Bold")
+        prodTitle.text = "PRODUCTION"
+        prodTitle.fontSize = 10
+        prodTitle.fontColor = SKColor(white: 0.4, alpha: 1)
+        prodTitle.position = CGPoint(x: 0, y: panelH / 2 - 16)
+        prodTitle.verticalAlignmentMode = .center
+        panel.addChild(prodTitle)
+        
+        // Resource flow indicators
+        let resources = ["⛏ +0/s", "⚡ +0/s", "🌱 +0/s", "🔬 +0/s"]
+        let colW = width / CGFloat(resources.count + 1)
+        let startX = -width / 2 + colW * 0.8
+        
+        for (i, res) in resources.enumerated() {
+            let label = SKLabelNode(fontNamed: "Menlo")
+            label.text = res
+            label.fontSize = 11
+            label.fontColor = .white
+            label.position = CGPoint(x: startX + CGFloat(i) * colW, y: panelH / 2 - 34)
+            label.horizontalAlignmentMode = .left
+            label.verticalAlignmentMode = .center
+            label.name = "prodLabel_\(i)"
+            panel.addChild(label)
+        }
+        
+        // Event/status line
+        let statusLine = SKLabelNode(fontNamed: "Menlo")
+        statusLine.text = "⏱ Build quickly — collapse is coming"
+        statusLine.fontSize = 10
+        statusLine.fontColor = SKColor(white: 0.45, alpha: 1)
+        statusLine.position = CGPoint(x: 0, y: -panelH / 2 + 14)
+        statusLine.verticalAlignmentMode = .center
+        statusLine.name = "statusLine"
+        panel.addChild(statusLine)
+    }
+    
+    /// Update status area with current production rates
+    private func updateStatusArea() {
+        guard let panel = childNode(withName: "statusArea") else { return }
+        
+        let deltas = [gameState.metalDelta, gameState.energyDelta, gameState.biomassDelta, gameState.researchDelta]
+        let symbols = ["⛏", "⚡", "🌱", "🔬"]
+        
+        for (i, delta) in deltas.enumerated() {
+            if let label = panel.childNode(withName: "prodLabel_\(i)") as? SKLabelNode {
+                let sign = delta >= 0 ? "+" : ""
+                label.text = "\(symbols[i]) \(sign)\(String(format: "%.0f", delta))/s"
+                label.fontColor = delta < 0 ? SKColor(red: 1, green: 0.5, blue: 0.5, alpha: 1) : .white
+            }
+        }
+        
+        // Update status line based on phase
+        if let statusLine = panel.childNode(withName: "statusLine") as? SKLabelNode {
+            switch gameState.phase {
+            case .expansion:
+                let buildings = gridModel.allBuildings().count
+                statusLine.text = "🏗 \(buildings) buildings • \(gameState.availableColonists) workers free"
+            case .escalation:
+                statusLine.text = "⚠ Stellar instability — systems failing!"
+                statusLine.fontColor = .orange
+            default:
+                statusLine.text = ""
+            }
+        }
+    }
+    
     // MARK: - Tutorial
     
     private func showTutorialHint() {
@@ -114,7 +201,7 @@ class GameScene: SKScene, BuildMenuDelegate {
         hint.text = "Select a building, then tap grid"
         hint.fontSize = 11
         hint.fontColor = SKColor(white: 0.5, alpha: 1)
-        hint.position = CGPoint(x: 0, y: -size.height / 2 + 80)
+        hint.position = CGPoint(x: 0, y: -size.height / 2 + 95)
         hint.zPosition = 90
         hint.name = "tutorial"
         cameraNode.addChild(hint)
@@ -170,6 +257,7 @@ class GameScene: SKScene, BuildMenuDelegate {
         gridRenderer.update(from: gridModel, state: gameState)
         hudRenderer.update(state: gameState)
         buildMenu.updateAffordability(state: gameState)
+        updateStatusArea()
     }
     
     private func showEscalationWarning() {
