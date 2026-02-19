@@ -123,8 +123,13 @@ final class BuildMenuRenderer {
     
     func handleTap(at point: CGPoint) -> Bool {
         for (i, btn) in buttons.enumerated() {
-            let localPoint = btn.convert(point, from: menuNode)
-            if btn.contains(localPoint) {
+            // Use frame-based hit testing (more reliable than SKShapeNode.contains)
+            let halfW = buttonSize / 2
+            let halfH = buttonSize / 2
+            let bx = btn.position.x
+            let by = btn.position.y
+            if point.x >= bx - halfW && point.x <= bx + halfW &&
+               point.y >= by - halfH && point.y <= by + halfH {
                 selectButton(i)
                 return true
             }

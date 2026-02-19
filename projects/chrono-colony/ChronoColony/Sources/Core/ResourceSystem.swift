@@ -91,7 +91,7 @@ final class ResourceSystem {
         // Store deltas for UI display
         state.metalDelta = metalDelta
         state.energyDelta = energyDelta
-        state.biomassDelta = biomassDelta - colonistBiomassCost // Show net
+        state.biomassDelta = biomassDelta // Already includes colonist cost
         state.researchDelta = researchDelta
         
         // Stability effects

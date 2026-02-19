@@ -16,7 +16,7 @@ enum GameConstants {
     // MARK: - Starting Resources
     static let startingMetal: Double = 100
     static let startingEnergy: Double = 50
-    static let startingBiomass: Double = 30
+    static let startingBiomass: Double = 50
     static let startingResearch: Double = 0
     static let startingStability: Double = 100
     static let startingColonists: Int = 5

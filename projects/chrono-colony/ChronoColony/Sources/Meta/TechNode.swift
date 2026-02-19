@@ -16,6 +16,15 @@ enum TechBranch: String, CaseIterable, Codable {
         }
     }
     
+    var shortName: String {
+        switch self {
+        case .infrastructure: return "Infra"
+        case .colony: return "Colony"
+        case .research: return "Research"
+        case .temporal: return "Temporal"
+        }
+    }
+    
     var colorHex: UInt32 {
         switch self {
         case .infrastructure: return 0x8B7355

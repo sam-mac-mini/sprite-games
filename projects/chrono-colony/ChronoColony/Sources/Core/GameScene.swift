@@ -478,6 +478,14 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             }
         }
         
+        // Pause ALL game time while event overlay is showing
+        guard !eventSystem.isShowingEvent else {
+            // Still update visuals but don't advance game time
+            gridRenderer.update(from: gridModel, state: gameState)
+            hudRenderer.update(state: gameState)
+            return
+        }
+        
         gameState.elapsedTime += dt
         
         let effectiveLoopDuration = techEffects.loopDuration
@@ -496,17 +504,13 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             return
         }
         
-        // Event system — check for new events (pauses resource ticks while showing)
-        if !eventSystem.isShowingEvent {
-            tickAccumulator += dt
-            if tickAccumulator >= GameConstants.simulationTickRate {
-                tickAccumulator -= GameConstants.simulationTickRate
-                resourceSystem.tick(grid: gridModel, state: gameState, techEffects: techEffects)
-                // Escalation effects on each sim tick
-                escalationSystem.tick(grid: gridModel, state: gameState, rng: &gameState.rng)
-                // Paradox Shield: enforce minimum stability
-                resourceSystem.enforceParadoxShield(state: gameState, techEffects: techEffects)
-            }
+        // Resource/escalation simulation tick (events already paused above via early return)
+        tickAccumulator += dt
+        if tickAccumulator >= GameConstants.simulationTickRate {
+            tickAccumulator -= GameConstants.simulationTickRate
+            resourceSystem.tick(grid: gridModel, state: gameState, techEffects: techEffects)
+            escalationSystem.tick(grid: gridModel, state: gameState, rng: &gameState.rng)
+            resourceSystem.enforceParadoxShield(state: gameState, techEffects: techEffects)
         }
         
         // Take snapshots for Time Rewind
@@ -520,7 +524,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         eventSystem.hasEventScanner = techEffects.meta.isUnlocked("RES-02")
         eventOverlay.canDismissEvents = techEffects.canDismissEvents
         
-        if let event = eventSystem.update(dt: dt, state: gameState, rng: &gameState.rng) {
+        // Suppress events during early tutorial (before player has learned basics)
+        let tutorialAllowsEvents = !tutorial.isActive || tutorial.currentStep.rawValue >= TutorialSystem.Step.watchTimer.rawValue
+        if tutorialAllowsEvents, let event = eventSystem.update(dt: dt, state: gameState, rng: &gameState.rng) {
             run(SoundManager.shared.event)
             eventOverlay.show(event: event)
         }
@@ -1163,6 +1169,8 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     
     private func restartLoop() {
         run(SoundManager.shared.newloop)
+        // Clear tutorial hints from previous loop
+        tutorial.onTechTreeOpened() // Marks tutorial as done
         // Remove all summary nodes
         cameraNode.children.filter { $0.name == "summary" || $0.name == "restartButton" || $0.name == "techTreeButton" || $0.name == "collapseEffect" }.forEach { $0.removeFromParent() }
         

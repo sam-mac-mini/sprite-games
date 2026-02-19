@@ -1,7 +1,7 @@
 # KANBAN — Chrono Colony
 
 ## 🔖 Backlog
-- [ ] TICK-014: Guided early loops — tutorial flow for first 3-5 runs | Priority: medium | Created: 2026-02-18
+
 ## 🔨 In Progress
 
 ## 👀 Review
@@ -23,3 +23,4 @@
 - [x] TICK-015: New building gameplay — Storage Depot (stability regen), Medical Bay (blocks sickness), Shield Gen (escalation protection), Clone Vats (colonist production) | Completed: 2026-02-19
 - [x] TICK-016: Temporal abilities — Time Dilation, Time Rewind, Echo Memory, Paradox Shield, Chrono Mastery + Emergency Protocols | Completed: 2026-02-19
 - [x] TICK-017: Event Scanner — preview upcoming events 30s before firing | Completed: 2026-02-19
+- [x] TICK-014: Tutorial system — 10-step progressive hints, action-triggered, auto-advancing | Completed: 2026-02-19
