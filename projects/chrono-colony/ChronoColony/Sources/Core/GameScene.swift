@@ -36,6 +36,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     private var lastTickTime: TimeInterval = 0
     private var tickAccumulator: TimeInterval = 0
     
+    // MARK: - Tutorial
+    private var tutorial: TutorialSystem!
+    
     // MARK: - Interaction State
     private var selectedTilePos: (col: Int, row: Int)?
     
@@ -149,7 +152,11 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         hudRenderer.update(state: gameState)
         buildMenu.updateAffordability(state: gameState)
         
-        showTutorialHint()
+        // Tutorial system
+        tutorial = TutorialSystem(sceneSize: size)
+        tutorial.attach(to: cameraNode)
+        tutorial.startWelcomeSequence()
+        
         setupTemporalButtons()
         
         // Pinch gesture
@@ -245,22 +252,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     
     // MARK: - Tutorial
     
-    private func showTutorialHint() {
-        let hint = SKLabelNode(fontNamed: "Menlo")
-        hint.text = "Select a building, then tap grid"
-        hint.fontSize = 11
-        hint.fontColor = SKColor(white: 0.5, alpha: 1)
-        hint.position = CGPoint(x: 0, y: -size.height / 2 + 95)
-        hint.zPosition = 90
-        hint.name = "tutorial"
-        cameraNode.addChild(hint)
-        
-        hint.run(SKAction.sequence([
-            SKAction.wait(forDuration: 6),
-            SKAction.fadeOut(withDuration: 1),
-            SKAction.removeFromParent()
-        ]))
-    }
+    // showTutorialHint replaced by TutorialSystem
     
     // MARK: - Temporal Abilities
     
@@ -655,7 +647,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     }
     
     private func handleGridTap(col: Int, row: Int) {
-        cameraNode.childNode(withName: "tutorial")?.removeFromParent()
+        // Tutorial hint is managed by TutorialSystem
         
         if let buildingType = buildMenu.selectedBuildingType {
             if gridModel.placeBuilding(buildingType, at: col, row: row, state: gameState) {
@@ -673,6 +665,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                     showFloatingText("-\(Int(buildingType.metalCost)) ⛏", at: col, row: row, color: .orange)
                 }
                 gridRenderer.animatePlacement(col: col, row: row)
+                tutorial.onBuildingPlaced(type: buildingType)
             } else {
                 gridRenderer.highlightTile(col: col, row: row, color: .red)
                 if let tile = gridModel.tile(at: col, row: row), tile.content != .empty {
@@ -699,6 +692,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                     let wasWorkers = tile.assignedWorkers
                     gridModel.assignWorker(at: col, row: row, state: gameState)
                     run(SoundManager.shared.assign)
+                    tutorial.onWorkerAssigned()
                     if wasWorkers == 0 {
                         showFloatingText("+1 👤 Active!", at: col, row: row, color: .green)
                     } else {
@@ -844,6 +838,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     private func triggerCollapse() {
         gameState.phase = .collapse
         run(SoundManager.shared.collapse)
+        tutorial.onCollapseStarted()
         
         // Dismiss any active event overlay
         eventOverlay.dismiss()
@@ -958,6 +953,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     
     private func showSummary() {
         gameState.phase = .summary
+        tutorial.onSummaryShown()
         
         // *** Hide game UI ***
         hudRenderer.hudNode.isHidden = true
@@ -1153,6 +1149,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     private func openTechTree() {
         guard let skView = self.view else { return }
         run(SoundManager.shared.tap)
+        tutorial.onTechTreeOpened()
         
         let techScene = TechTreeScene(size: self.size)
         techScene.scaleMode = .resizeFill
@@ -1207,6 +1204,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         gridRenderer.clearSelection()
         infoPanel?.dismiss()
         infoPanel = nil
+        tutorial.onBuildingSelected()
     }
     
     func buildMenuDidSelectDemolish() { gridRenderer.clearSelection() }
