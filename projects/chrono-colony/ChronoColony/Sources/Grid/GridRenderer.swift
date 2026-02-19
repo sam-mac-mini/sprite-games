@@ -6,9 +6,13 @@ final class GridRenderer {
     private let tileSize: CGFloat
     private var tileNodes: [[SKShapeNode]] = []
     private var buildingLabels: [[SKLabelNode?]] = []
+    private var buildingSpriteNodes: [[SKNode?]] = []
+    private var depositSpriteNodes: [[SKNode?]] = []
     private var workerNodes: [[SKNode?]] = []
     private var selectionNode: SKShapeNode?
     private var bonusIndicators: [[SKNode?]] = []
+    /// Track what was last rendered per tile to avoid rebuild every frame
+    private var lastRenderedContent: [[String]] = []
     
     // Grid dimensions
     private let columns: Int
@@ -48,6 +52,8 @@ final class GridRenderer {
         for row in 0..<rows {
             var rowNodes: [SKShapeNode] = []
             var rowLabels: [SKLabelNode?] = []
+            var rowBuildingSprites: [SKNode?] = []
+            var rowDepositSprites: [SKNode?] = []
             var rowWorkers: [SKNode?] = []
             var rowBonuses: [SKNode?] = []
             
@@ -75,6 +81,22 @@ final class GridRenderer {
                 label.isHidden = true
                 gridNode.addChild(label)
                 rowLabels.append(label)
+                
+                // Building sprite container (hidden by default)
+                let buildingSpriteContainer = SKNode()
+                buildingSpriteContainer.position = CGPoint(x: x, y: y)
+                buildingSpriteContainer.zPosition = 1.5
+                buildingSpriteContainer.isHidden = true
+                gridNode.addChild(buildingSpriteContainer)
+                rowBuildingSprites.append(buildingSpriteContainer)
+                
+                // Deposit sprite container (hidden by default)
+                let depositSpriteContainer = SKNode()
+                depositSpriteContainer.position = CGPoint(x: x, y: y)
+                depositSpriteContainer.zPosition = 1.2
+                depositSpriteContainer.isHidden = true
+                gridNode.addChild(depositSpriteContainer)
+                rowDepositSprites.append(depositSpriteContainer)
                 
                 // Worker node container (hidden by default)
                 let workerContainer = SKNode()
@@ -115,9 +137,12 @@ final class GridRenderer {
             
             tileNodes.append(rowNodes)
             buildingLabels.append(rowLabels)
+            buildingSpriteNodes.append(rowBuildingSprites)
+            depositSpriteNodes.append(rowDepositSprites)
             workerNodes.append(rowWorkers)
             bonusIndicators.append(rowBonuses)
         }
+        lastRenderedContent = Array(repeating: Array(repeating: "", count: columns), count: rows)
         
         // Selection highlight node
         selectionNode = SKShapeNode(rectOf: CGSize(width: tileSize + 2, height: tileSize + 2), cornerRadius: 5)
@@ -139,6 +164,8 @@ final class GridRenderer {
                 let label = buildingLabels[row][col]
                 let workerContainer = workerNodes[row][col]
                 let bonusNode = bonusIndicators[row][col]
+                let buildingSprite = buildingSpriteNodes[row][col]
+                let depositSprite = depositSpriteNodes[row][col]
                 
                 switch tile.content {
                 case .empty:
@@ -146,18 +173,31 @@ final class GridRenderer {
                     label?.isHidden = true
                     workerContainer?.isHidden = true
                     bonusNode?.isHidden = true
+                    buildingSprite?.isHidden = true
+                    depositSprite?.isHidden = true
+                    lastRenderedContent[row][col] = ""
                     
                 case .building(let type):
-                    // Building color with active/inactive/disabled state
+                    // Subtle background tint
                     if tile.isDisabled {
-                        node.fillColor = type.color.withAlphaComponent(0.2)
+                        node.fillColor = type.color.withAlphaComponent(0.1)
                     } else if tile.isActive {
-                        node.fillColor = type.color
+                        node.fillColor = type.color.withAlphaComponent(0.15)
                     } else {
-                        node.fillColor = type.color.withAlphaComponent(0.4)
+                        node.fillColor = type.color.withAlphaComponent(0.08)
                     }
-                    label?.text = type.symbol
-                    label?.isHidden = false
+                    label?.isHidden = true  // Hide emoji, use sprites
+                    depositSprite?.isHidden = true
+                    
+                    // Show building sprite (only rebuild if changed)
+                    let contentKey = "b_\(type.rawValue)_\(tile.isDisabled)"
+                    if lastRenderedContent[row][col] != contentKey {
+                        buildingSprite?.removeAllChildren()
+                        let sprite = BuildingSprites.spriteNode(for: type, tileSize: tileSize, isDisabled: tile.isDisabled)
+                        buildingSprite?.addChild(sprite)
+                        lastRenderedContent[row][col] = contentKey
+                    }
+                    buildingSprite?.isHidden = false
                     
                     // Worker visualization
                     updateWorkerDisplay(container: workerContainer, workers: tile.assignedWorkers, isActive: tile.isActive, isDisabled: tile.isDisabled)
@@ -178,18 +218,24 @@ final class GridRenderer {
                     switch deposit {
                     case .metalVein:
                         node.fillColor = metalVeinColor
-                        label?.text = "◆"
-                        label?.fontColor = SKColor(red: 0.7, green: 0.65, blue: 0.8, alpha: 1)
                     case .biomassZone:
                         node.fillColor = biomassZoneColor
-                        label?.text = "♣"
-                        label?.fontColor = SKColor(red: 0.4, green: 0.7, blue: 0.4, alpha: 1)
                     case .anomaly:
                         node.fillColor = anomalyColor
-                        label?.text = "?"
-                        label?.fontColor = SKColor(red: 0.8, green: 0.5, blue: 0.9, alpha: 1)
                     }
-                    label?.isHidden = false
+                    label?.isHidden = true  // Hide emoji, use sprites
+                    buildingSprite?.isHidden = true
+                    
+                    // Show deposit sprite (only rebuild if changed)
+                    let depositKey = "d_\(deposit)"
+                    if lastRenderedContent[row][col] != depositKey {
+                        depositSprite?.removeAllChildren()
+                        let depSprite = BuildingSprites.depositNode(for: deposit, tileSize: tileSize)
+                        depositSprite?.addChild(depSprite)
+                        lastRenderedContent[row][col] = depositKey
+                    }
+                    depositSprite?.isHidden = false
+                    
                     workerContainer?.isHidden = true
                     bonusNode?.isHidden = true
                     
@@ -198,6 +244,8 @@ final class GridRenderer {
                     label?.isHidden = true
                     workerContainer?.isHidden = true
                     bonusNode?.isHidden = true
+                    buildingSprite?.isHidden = true
+                    depositSprite?.isHidden = true
                 }
             }
         }

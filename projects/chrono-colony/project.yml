@@ -11,6 +11,9 @@ targets:
     sources:
       - path: ChronoColony/Sources
       - path: ChronoColony/Assets.xcassets
+      - path: ChronoColony/Sounds
+        type: folder
+        buildPhase: resources
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

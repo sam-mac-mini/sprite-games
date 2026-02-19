@@ -289,6 +289,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         }
         
         if let event = eventSystem.update(dt: dt, state: gameState, rng: &gameState.rng) {
+            run(SoundManager.shared.event)
             eventOverlay.show(event: event)
         }
         
@@ -302,6 +303,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     }
     
     private func showEscalationWarning() {
+        run(SoundManager.shared.escalation)
         let warning = SKLabelNode(fontNamed: "Menlo-Bold")
         warning.text = "⚠ STELLAR INSTABILITY ⚠"
         warning.fontSize = 15
@@ -402,6 +404,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         
         if let buildingType = buildMenu.selectedBuildingType {
             if gridModel.placeBuilding(buildingType, at: col, row: row, state: gameState) {
+                run(SoundManager.shared.build)
                 gridRenderer.highlightTile(col: col, row: row, color: .green)
                 if gameState.availableColonists > 0 {
                     gridModel.assignWorker(at: col, row: row, state: gameState)
@@ -420,6 +423,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             if let tile = gridModel.tile(at: col, row: row), tile.buildingType != nil {
                 let refund = tile.buildingType!.demolishRefund
                 gridModel.demolishBuilding(at: col, row: row, state: gameState)
+                run(SoundManager.shared.demolish)
                 gridRenderer.highlightTile(col: col, row: row, color: .orange)
                 showFloatingText("+\(Int(refund)) ⛏", at: col, row: row, color: .green)
             }
@@ -432,6 +436,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 } else if gameState.availableColonists > 0 {
                     let wasWorkers = tile.assignedWorkers
                     gridModel.assignWorker(at: col, row: row, state: gameState)
+                    run(SoundManager.shared.assign)
                     if wasWorkers == 0 {
                         showFloatingText("+1 👤 Active!", at: col, row: row, color: .green)
                     } else {
@@ -446,6 +451,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         } else if buildMenu.isToggleMode {
             if let tile = gridModel.tile(at: col, row: row), tile.buildingType != nil {
                 let nowDisabled = gridModel.toggleBuilding(at: col, row: row)
+                run(SoundManager.shared.tap)
                 if nowDisabled {
                     showFloatingText("⏸ Disabled", at: col, row: row, color: .orange)
                 } else {
@@ -529,6 +535,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     }
     
     private func showEscalationFlash() {
+        run(SoundManager.shared.warning)
         let power = escalationSystem.intensity(state: gameState)
         let messages = power > 0.7
             ? ["⚠ CRITICAL INSTABILITY", "SYSTEMS FAILING", "EVACUATE?"]
@@ -556,6 +563,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     
     private func triggerCollapse() {
         gameState.phase = .collapse
+        run(SoundManager.shared.collapse)
         
         // Dismiss any active event overlay
         eventOverlay.dismiss()
@@ -832,6 +840,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     }
     
     private func restartLoop() {
+        run(SoundManager.shared.newloop)
         // Remove all summary nodes
         cameraNode.children.filter { $0.name == "summary" || $0.name == "restartButton" || $0.name == "collapseEffect" }.forEach { $0.removeFromParent() }
         
@@ -876,6 +885,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     // MARK: - EventOverlayDelegate
     
     func eventOverlayDidChoose(choiceIndex: Int) {
+        run(SoundManager.shared.choice)
         eventSystem.resolveChoice(choiceIndex: choiceIndex, grid: gridModel, state: gameState, rng: &gameState.rng)
         eventOverlay.dismiss()
         
