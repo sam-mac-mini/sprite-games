@@ -8,6 +8,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     private var gameState: GameState!
     private var gridModel: GridModel!
     private var resourceSystem: ResourceSystem!
+    private var techEffects: TechEffects!
     
     // MARK: - Renderers
     private var gridRenderer: GridRenderer!
@@ -129,6 +130,11 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         eventOverlay = EventOverlayRenderer(sceneSize: size)
         eventOverlay.delegate = self
         cameraNode.addChild(eventOverlay.overlayNode)
+        
+        // Load meta progression and apply tech effects
+        let meta = MetaState.load()
+        techEffects = TechEffects(meta: meta)
+        applyTechEffectsToState()
         
         // Start
         gameState.phase = .expansion
@@ -282,7 +288,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             tickAccumulator += dt
             if tickAccumulator >= GameConstants.simulationTickRate {
                 tickAccumulator -= GameConstants.simulationTickRate
-                resourceSystem.tick(grid: gridModel, state: gameState)
+                resourceSystem.tick(grid: gridModel, state: gameState, techEffects: techEffects)
                 // Escalation effects on each sim tick
                 escalationSystem.tick(grid: gridModel, state: gameState, rng: &gameState.rng)
             }
@@ -375,11 +381,16 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         
-        // Summary — check restart
+        // Summary — check buttons
         if gameState.phase == .summary {
             let loc = touch.location(in: cameraNode)
+            if let techBtn = cameraNode.childNode(withName: "techTreeButton"), techBtn.contains(loc) {
+                openTechTree()
+                return
+            }
             if let restart = cameraNode.childNode(withName: "restartButton"), restart.contains(loc) {
                 restartLoop()
+                return
             }
             return
         }
@@ -503,6 +514,21 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         let panel = InfoPanelRenderer(buildingType: type, tile: tile, adjacencyMultiplier: mult, sceneSize: size)
         cameraNode.addChild(panel.node)
         infoPanel = panel
+    }
+    
+    // MARK: - Tech Effects
+    
+    private func applyTechEffectsToState() {
+        // Apply starting colonists
+        gameState.totalColonists = techEffects.startingColonists
+        
+        // Apply Loop Echo (carry over resources from last loop)
+        if let echo = techEffects.loopEchoResources {
+            gameState.metal += echo.metal
+            gameState.energy += echo.energy
+            gameState.biomass += echo.biomass
+            gameState.research += echo.research
+        }
     }
     
     // MARK: - Escalation Visuals
@@ -694,6 +720,11 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         let timeBonus = Int(gameState.elapsedTime / 60) * 10
         let total = knowledgeFromResearch + knowledgeFromBuildings + efficiencyBonus + survivalBonus + stabilityBonus + timeBonus
         
+        // Award KP to meta progression
+        let meta = MetaState.load()
+        meta.awardKnowledge(total)
+        meta.saveLastLoopResources(metal: gameState.metal, energy: gameState.energy, biomass: gameState.biomass, research: gameState.research)
+        
         // Full-screen opaque overlay
         let overlay = SKShapeNode(rectOf: CGSize(width: size.width * 2, height: size.height * 2))
         overlay.fillColor = SKColor(red: 0.03, green: 0.03, blue: 0.06, alpha: 0.92)
@@ -803,32 +834,58 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         totalValue.zPosition = 1
         card.addChild(totalValue)
         
-        // Restart button
-        let btnY = -cardHeight / 2 + 35
-        let restartBg = SKShapeNode(rectOf: CGSize(width: 180, height: 42), cornerRadius: 12)
-        restartBg.fillColor = SKColor(red: 0.15, green: 0.4, blue: 0.7, alpha: 1)
-        restartBg.strokeColor = SKColor(red: 0.25, green: 0.55, blue: 0.9, alpha: 1)
-        restartBg.lineWidth = 1.5
-        restartBg.position = CGPoint(x: 0, y: btnY)
+        // Tech Tree button (primary)
+        let btnY = -cardHeight / 2 + 55
+        let techBtnBg = SKShapeNode(rectOf: CGSize(width: 200, height: 42), cornerRadius: 12)
+        techBtnBg.fillColor = SKColor(red: 0.15, green: 0.35, blue: 0.6, alpha: 1)
+        techBtnBg.strokeColor = SKColor(red: 0.3, green: 0.55, blue: 0.9, alpha: 1)
+        techBtnBg.lineWidth = 1.5
+        techBtnBg.position = CGPoint(x: 0, y: btnY)
+        techBtnBg.zPosition = 1
+        techBtnBg.name = "techTreeButtonInner"
+        card.addChild(techBtnBg)
+        
+        let techLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+        techLabel.text = "💡 SPEND KNOWLEDGE"
+        techLabel.fontSize = 13
+        techLabel.fontColor = .white
+        techLabel.verticalAlignmentMode = .center
+        techBtnBg.addChild(techLabel)
+        
+        // Quick restart button (secondary, below)
+        let restartBtnY = btnY - 48
+        let restartBg = SKShapeNode(rectOf: CGSize(width: 140, height: 32), cornerRadius: 10)
+        restartBg.fillColor = SKColor(red: 0.1, green: 0.1, blue: 0.15, alpha: 1)
+        restartBg.strokeColor = SKColor(white: 0.25, alpha: 1)
+        restartBg.lineWidth = 1
+        restartBg.position = CGPoint(x: 0, y: restartBtnY)
         restartBg.zPosition = 1
-        restartBg.name = "restartButtonInner"
+        restartBg.name = "quickRestartInner"
         card.addChild(restartBg)
         
-        let restartLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-        restartLabel.text = "NEW LOOP"
-        restartLabel.fontSize = 15
-        restartLabel.fontColor = .white
-        restartLabel.verticalAlignmentMode = .center
-        restartBg.addChild(restartLabel)
+        let skipLabel = SKLabelNode(fontNamed: "Menlo")
+        skipLabel.text = "Quick Restart"
+        skipLabel.fontSize = 11
+        skipLabel.fontColor = SKColor(white: 0.5, alpha: 1)
+        skipLabel.verticalAlignmentMode = .center
+        restartBg.addChild(skipLabel)
         
-        // The actual hit target (in camera space, matching card position)
-        let hitTarget = SKShapeNode(rectOf: CGSize(width: 180, height: 42))
-        hitTarget.fillColor = .clear
-        hitTarget.strokeColor = .clear
-        hitTarget.position = CGPoint(x: 0, y: 20 + btnY) // card.position.y + btnY
-        hitTarget.zPosition = 302
-        hitTarget.name = "restartButton"
-        cameraNode.addChild(hitTarget)
+        // Hit targets in camera space
+        let techHit = SKShapeNode(rectOf: CGSize(width: 200, height: 42))
+        techHit.fillColor = .clear
+        techHit.strokeColor = .clear
+        techHit.position = CGPoint(x: 0, y: 20 + btnY)
+        techHit.zPosition = 302
+        techHit.name = "techTreeButton"
+        cameraNode.addChild(techHit)
+        
+        let restartHit = SKShapeNode(rectOf: CGSize(width: 140, height: 32))
+        restartHit.fillColor = .clear
+        restartHit.strokeColor = .clear
+        restartHit.position = CGPoint(x: 0, y: 20 + restartBtnY)
+        restartHit.zPosition = 302
+        restartHit.name = "restartButton"
+        cameraNode.addChild(restartHit)
         
         // Animate card in
         card.setScale(0.9)
@@ -839,10 +896,24 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         ]))
     }
     
+    private func openTechTree() {
+        guard let skView = self.view else { return }
+        run(SoundManager.shared.tap)
+        
+        let techScene = TechTreeScene(size: self.size)
+        techScene.scaleMode = .resizeFill
+        techScene.onStartLoop = { [weak skView] in
+            let newGameScene = GameScene(size: skView?.bounds.size ?? CGSize(width: 320, height: 480))
+            newGameScene.scaleMode = .resizeFill
+            skView?.presentScene(newGameScene, transition: SKTransition.fade(withDuration: 0.5))
+        }
+        skView.presentScene(techScene, transition: SKTransition.fade(withDuration: 0.3))
+    }
+    
     private func restartLoop() {
         run(SoundManager.shared.newloop)
         // Remove all summary nodes
-        cameraNode.children.filter { $0.name == "summary" || $0.name == "restartButton" || $0.name == "collapseEffect" }.forEach { $0.removeFromParent() }
+        cameraNode.children.filter { $0.name == "summary" || $0.name == "restartButton" || $0.name == "techTreeButton" || $0.name == "collapseEffect" }.forEach { $0.removeFromParent() }
         
         // Show game UI again
         hudRenderer.hudNode.isHidden = false
@@ -852,7 +923,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
         cameraNode.setScale(1.0)
         
-        // Reset state
+        // Reset state with tech effects
         gameState = GameState()
         gridModel = GridModel()
         gridModel.generateMap(rng: &gameState.rng)
@@ -860,6 +931,12 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         eventOverlay.dismiss()
         escalationTintNode?.alpha = 0
         lastWarningFlash = 0
+        
+        // Reload tech effects
+        let meta = MetaState.load()
+        techEffects = TechEffects(meta: meta)
+        applyTechEffectsToState()
+        
         gameState.phase = .expansion
         lastTickTime = 0
         tickAccumulator = 0

@@ -4,7 +4,7 @@ import Foundation
 final class ResourceSystem {
     
     /// Run one simulation tick — called every `simulationTickRate` seconds
-    func tick(grid: GridModel, state: GameState) {
+    func tick(grid: GridModel, state: GameState, techEffects: TechEffects? = nil) {
         var metalDelta: Double = 0
         var energyDelta: Double = 0
         var biomassDelta: Double = 0
@@ -18,20 +18,28 @@ final class ResourceSystem {
             let prod = buildingType.production
             let cons = buildingType.consumption
             let adjacencyMult = grid.adjacencyMultiplier(col: col, row: row)
+            let techProdMult = techEffects?.productionMultiplier(for: buildingType) ?? 1.0
             
-            // Worker efficiency: first worker = 1.0x, second = diminishing returns
+            // Worker efficiency: first = 1.0x, second = diminishing, optional third
+            let secondEff = techEffects?.secondWorkerEfficiency ?? buildingType.secondWorkerEfficiency
             let workerMult: Double
-            if workerCount >= 2 {
-                workerMult = 1.0 + buildingType.secondWorkerEfficiency
+            if workerCount >= 3 {
+                let thirdEff = techEffects?.thirdWorkerEfficiency ?? 0.4
+                workerMult = 1.0 + secondEff + thirdEff
+            } else if workerCount >= 2 {
+                workerMult = 1.0 + secondEff
+            } else if workerCount >= 1 {
+                workerMult = 1.0
             } else {
-                workerMult = Double(workerCount)
+                // Automation Protocol: unstaffed production
+                workerMult = techEffects?.automationRate ?? 0.0
             }
             
-            // Production scaled by worker efficiency AND adjacency bonus
-            metalDelta += prod.metal * workerMult * adjacencyMult
-            energyDelta += prod.energy * workerMult * adjacencyMult
-            biomassDelta += prod.biomass * workerMult * adjacencyMult
-            researchDelta += prod.research * workerMult * adjacencyMult
+            // Production scaled by worker efficiency, adjacency, AND tech bonuses
+            metalDelta += prod.metal * workerMult * adjacencyMult * techProdMult
+            energyDelta += prod.energy * workerMult * adjacencyMult * techProdMult
+            biomassDelta += prod.biomass * workerMult * adjacencyMult * techProdMult
+            researchDelta += prod.research * workerMult * adjacencyMult * techProdMult
             
             // Consumption (always costs, NOT affected by adjacency)
             metalDelta -= cons.metal
@@ -40,8 +48,9 @@ final class ResourceSystem {
             researchDelta -= cons.research
         }
         
-        // Colonist biomass consumption (0.5 per colonist per tick)
-        let colonistBiomassCost = Double(state.totalColonists) * 0.5
+        // Colonist biomass consumption (0.5 per colonist per tick, reduced by tech)
+        let foodMult = techEffects?.colonistFoodMultiplier ?? 1.0
+        let colonistBiomassCost = Double(state.totalColonists) * 0.5 * foodMult
         biomassDelta -= colonistBiomassCost
         
         // Apply deltas
