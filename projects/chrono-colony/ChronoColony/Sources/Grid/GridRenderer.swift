@@ -41,11 +41,11 @@ final class GridRenderer {
         let offsetX = -totalWidth / 2 + tileSize / 2
         let offsetY = -totalHeight / 2 + tileSize / 2
         
-        // Grid background
-        let bg = SKShapeNode(rectOf: CGSize(width: totalWidth + 8, height: totalHeight + 8), cornerRadius: 8)
-        bg.fillColor = SKColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 1)
-        bg.strokeColor = SKColor(red: 0.2, green: 0.25, blue: 0.35, alpha: 0.8)
-        bg.lineWidth = 2
+        // Grid background — subtle frame
+        let bg = SKShapeNode(rectOf: CGSize(width: totalWidth + 4, height: totalHeight + 4), cornerRadius: 6)
+        bg.fillColor = SKColor(red: 0.15, green: 0.12, blue: 0.08, alpha: 1)
+        bg.strokeColor = SKColor(red: 0.3, green: 0.25, blue: 0.18, alpha: 0.5)
+        bg.lineWidth = 1
         bg.zPosition = -1
         gridNode.addChild(bg)
         
@@ -62,11 +62,12 @@ final class GridRenderer {
                 let y = offsetY + CGFloat(row) * tileSize
                 
                 // Tile background
-                let tile = SKShapeNode(rectOf: CGSize(width: tileSize - 2, height: tileSize - 2), cornerRadius: 4)
+                let tile = SKShapeNode(rectOf: CGSize(width: tileSize - 1, height: tileSize - 1), cornerRadius: 2)
                 tile.position = CGPoint(x: x, y: y)
-                tile.fillColor = emptyColor
-                tile.strokeColor = gridLineColor
-                tile.lineWidth = 0.5
+                tile.fillColor = .clear
+                tile.strokeColor = SKColor(red: 0.15, green: 0.1, blue: 0.05, alpha: 0.4)
+                tile.lineWidth = 0.75
+                tile.zPosition = 0.8  // Above ground textures
                 tile.name = "tile_\(col)_\(row)"
                 gridNode.addChild(tile)
                 rowNodes.append(tile)
@@ -85,15 +86,15 @@ final class GridRenderer {
                 // Building sprite container (hidden by default)
                 let buildingSpriteContainer = SKNode()
                 buildingSpriteContainer.position = CGPoint(x: x, y: y)
-                buildingSpriteContainer.zPosition = 1.5
+                buildingSpriteContainer.zPosition = 1.0
                 buildingSpriteContainer.isHidden = true
                 gridNode.addChild(buildingSpriteContainer)
                 rowBuildingSprites.append(buildingSpriteContainer)
                 
-                // Deposit sprite container (hidden by default)
+                // Deposit sprite container (also used for ground on empty tiles)
                 let depositSpriteContainer = SKNode()
                 depositSpriteContainer.position = CGPoint(x: x, y: y)
-                depositSpriteContainer.zPosition = 1.2
+                depositSpriteContainer.zPosition = 0.5
                 depositSpriteContainer.isHidden = true
                 gridNode.addChild(depositSpriteContainer)
                 rowDepositSprites.append(depositSpriteContainer)
@@ -169,33 +170,56 @@ final class GridRenderer {
                 
                 switch tile.content {
                 case .empty:
-                    node.fillColor = emptyColor
+                    node.fillColor = .clear
                     label?.isHidden = true
                     workerContainer?.isHidden = true
                     bonusNode?.isHidden = true
                     buildingSprite?.isHidden = true
                     depositSprite?.isHidden = true
-                    lastRenderedContent[row][col] = ""
+                    // Show ground texture for empty tiles
+                    let emptyKey = "empty"
+                    if lastRenderedContent[row][col] != emptyKey {
+                        // Use alternating ground tiles for visual variety
+                        let useAlt = (col + row) % 3 == 0
+                        let groundName = useAlt ? "groundTileAlt" : "groundTile"
+                        // Reuse depositSprite container for ground display on empty tiles
+                        depositSprite?.removeAllChildren()
+                        let ground = SKSpriteNode(imageNamed: groundName)
+                        ground.size = CGSize(width: tileSize, height: tileSize)
+                        depositSprite?.addChild(ground)
+                        depositSprite?.isHidden = false
+                        lastRenderedContent[row][col] = emptyKey
+                    } else {
+                        depositSprite?.isHidden = false
+                    }
                     
                 case .building(let type):
-                    // Subtle background tint
-                    if tile.isDisabled {
-                        node.fillColor = type.color.withAlphaComponent(0.1)
-                    } else if tile.isActive {
-                        node.fillColor = type.color.withAlphaComponent(0.15)
-                    } else {
-                        node.fillColor = type.color.withAlphaComponent(0.08)
-                    }
-                    label?.isHidden = true  // Hide emoji, use sprites
+                    // Ground tile behind building
+                    node.fillColor = .clear
+                    label?.isHidden = true
                     depositSprite?.isHidden = true
                     
                     // Show building sprite (only rebuild if changed)
                     let contentKey = "b_\(type.rawValue)_\(tile.isDisabled)"
                     if lastRenderedContent[row][col] != contentKey {
                         buildingSprite?.removeAllChildren()
-                        let sprite = BuildingSprites.spriteNode(for: type, tileSize: tileSize, isDisabled: tile.isDisabled)
-                        buildingSprite?.addChild(sprite)
+                        
+                        // Ground tile underneath
+                        let ground = SKSpriteNode(imageNamed: "groundTile")
+                        ground.size = CGSize(width: tileSize, height: tileSize)
+                        buildingSprite?.addChild(ground)
+                        
+                        // Building texture — scaled up to compensate for transparent padding
+                        let bSprite = SKSpriteNode(imageNamed: type.imageName)
+                        bSprite.size = CGSize(width: tileSize * 1.5, height: tileSize * 1.5)
+                        bSprite.alpha = tile.isDisabled ? 0.35 : 1.0
+                        buildingSprite?.addChild(bSprite)
+                        
                         lastRenderedContent[row][col] = contentKey
+                    }
+                    // Update alpha live for disable toggle
+                    if let bSprite = buildingSprite?.children.last as? SKSpriteNode {
+                        bSprite.alpha = tile.isDisabled ? 0.35 : 1.0
                     }
                     buildingSprite?.isHidden = false
                     
@@ -215,23 +239,32 @@ final class GridRenderer {
                     }
                     
                 case .resourceDeposit(let deposit):
-                    switch deposit {
-                    case .metalVein:
-                        node.fillColor = metalVeinColor
-                    case .biomassZone:
-                        node.fillColor = biomassZoneColor
-                    case .anomaly:
-                        node.fillColor = anomalyColor
-                    }
-                    label?.isHidden = true  // Hide emoji, use sprites
+                    node.fillColor = .clear
+                    label?.isHidden = true
                     buildingSprite?.isHidden = true
                     
-                    // Show deposit sprite (only rebuild if changed)
+                    let depositImageName: String
+                    switch deposit {
+                    case .metalVein: depositImageName = "metalVein"
+                    case .biomassZone: depositImageName = "biomassZone"
+                    case .anomaly: depositImageName = "anomaly"
+                    }
+                    
                     let depositKey = "d_\(deposit)"
                     if lastRenderedContent[row][col] != depositKey {
                         depositSprite?.removeAllChildren()
-                        let depSprite = BuildingSprites.depositNode(for: deposit, tileSize: tileSize)
+                        
+                        // Ground tile underneath
+                        let ground = SKSpriteNode(imageNamed: "groundTile")
+                        ground.size = CGSize(width: tileSize, height: tileSize)
+                        depositSprite?.addChild(ground)
+                        
+                        // Deposit texture — scaled up, z above ground
+                        let depSprite = SKSpriteNode(imageNamed: depositImageName)
+                        depSprite.size = CGSize(width: tileSize * 1.6, height: tileSize * 1.6)
+                        depSprite.zPosition = 0.5
                         depositSprite?.addChild(depSprite)
+                        
                         lastRenderedContent[row][col] = depositKey
                     }
                     depositSprite?.isHidden = false

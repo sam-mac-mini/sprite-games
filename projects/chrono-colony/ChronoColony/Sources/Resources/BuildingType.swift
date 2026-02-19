@@ -75,6 +75,16 @@ enum BuildingType: String, CaseIterable, Identifiable {
         case .researchLab: return "🔬"
         }
     }
+    
+    /// Asset catalog image name for this building
+    var imageName: String {
+        switch self {
+        case .metalExtractor: return "metalExtractor"
+        case .farm: return "farm"
+        case .solarArray: return "solarArray"
+        case .researchLab: return "researchLab"
+        }
+    }
 }
 
 /// A bundle of resource amounts (used for production/consumption)
