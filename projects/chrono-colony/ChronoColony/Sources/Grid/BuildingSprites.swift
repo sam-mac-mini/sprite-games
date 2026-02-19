@@ -212,6 +212,33 @@ final class BuildingSprites {
             vat.strokeColor = SKColor(red: 0.7, green: 0.3, blue: 0.8, alpha: alpha)
             vat.lineWidth = 1.5
             container.addChild(vat)
+            
+        case .temporalRift:
+            // Swirling portal
+            let ring = SKShapeNode(circleOfRadius: s * 0.3)
+            ring.fillColor = SKColor(red: 0.3, green: 0.15, blue: 0.5, alpha: alpha * 0.5)
+            ring.strokeColor = SKColor(red: 0.6, green: 0.3, blue: 0.9, alpha: alpha)
+            ring.lineWidth = 2
+            ring.glowWidth = 5
+            container.addChild(ring)
+            let core = SKShapeNode(circleOfRadius: s * 0.12)
+            core.fillColor = SKColor(red: 0.8, green: 0.5, blue: 1, alpha: alpha)
+            core.strokeColor = .clear
+            core.glowWidth = 3
+            container.addChild(core)
+            
+        case .megaStructure:
+            // Large imposing structure
+            let base = SKShapeNode(rectOf: CGSize(width: s * 0.8, height: s * 0.6), cornerRadius: 3)
+            base.fillColor = SKColor(red: 0.6, green: 0.55, blue: 0.25, alpha: alpha)
+            base.strokeColor = SKColor(red: 0.8, green: 0.7, blue: 0.3, alpha: alpha)
+            base.lineWidth = 2
+            container.addChild(base)
+            let tower = SKShapeNode(rectOf: CGSize(width: s * 0.2, height: s * 0.4))
+            tower.fillColor = SKColor(red: 0.7, green: 0.65, blue: 0.3, alpha: alpha)
+            tower.strokeColor = .clear
+            tower.position = CGPoint(x: 0, y: s * 0.2)
+            container.addChild(tower)
         }
         
         return container

@@ -12,6 +12,8 @@ enum BuildingType: String, CaseIterable, Identifiable {
     case medicalBay = "Medical Bay"
     case shieldGenerator = "Shield Generator"
     case cloneVats = "Clone Vats"
+    case temporalRift = "Temporal Rift"
+    case megaStructure = "Mega-Structure"
     
     var id: String { rawValue }
     
@@ -23,6 +25,8 @@ enum BuildingType: String, CaseIterable, Identifiable {
         case .medicalBay: return "COL-04"
         case .shieldGenerator: return "RES-05"
         case .cloneVats: return "COL-07"
+        case .temporalRift: return "TMP-05"
+        case .megaStructure: return "INF-07"
         default: return nil
         }
     }
@@ -42,6 +46,8 @@ enum BuildingType: String, CaseIterable, Identifiable {
         case .medicalBay: return 55
         case .shieldGenerator: return 70
         case .cloneVats: return 80
+        case .temporalRift: return 90
+        case .megaStructure: return 120
         }
     }
     
@@ -64,6 +70,10 @@ enum BuildingType: String, CaseIterable, Identifiable {
             return ResourceBundle(metal: 0, energy: 0, biomass: 0, research: 0)
         case .cloneVats:
             return ResourceBundle(metal: 0, energy: 0, biomass: 0, research: 0)
+        case .temporalRift:
+            return ResourceBundle(metal: 2, energy: 3, biomass: 1, research: 2)
+        case .megaStructure:
+            return ResourceBundle(metal: 5, energy: 6, biomass: 3, research: 3)
         }
     }
     
@@ -86,6 +96,10 @@ enum BuildingType: String, CaseIterable, Identifiable {
             return ResourceBundle(metal: 0, energy: 3, biomass: 0, research: 0)
         case .cloneVats:
             return ResourceBundle(metal: 0, energy: 2, biomass: 2, research: 0)
+        case .temporalRift:
+            return ResourceBundle(metal: 0, energy: 0, biomass: 0, research: 0) // Drains stability instead
+        case .megaStructure:
+            return ResourceBundle(metal: 0, energy: 4, biomass: 2, research: 0)
         }
     }
     
@@ -109,6 +123,8 @@ enum BuildingType: String, CaseIterable, Identifiable {
         case .medicalBay: return SKColor(red: 0.9, green: 0.3, blue: 0.3, alpha: 1)
         case .shieldGenerator: return SKColor(red: 0.3, green: 0.8, blue: 0.8, alpha: 1)
         case .cloneVats: return SKColor(red: 0.7, green: 0.3, blue: 0.7, alpha: 1)
+        case .temporalRift: return SKColor(red: 0.5, green: 0.3, blue: 0.8, alpha: 1)
+        case .megaStructure: return SKColor(red: 0.8, green: 0.7, blue: 0.3, alpha: 1)
         }
     }
     
@@ -122,6 +138,8 @@ enum BuildingType: String, CaseIterable, Identifiable {
         case .medicalBay: return "🏥"
         case .shieldGenerator: return "🛡"
         case .cloneVats: return "🧬"
+        case .temporalRift: return "🌀"
+        case .megaStructure: return "🏛"
         }
     }
     
@@ -137,6 +155,8 @@ enum BuildingType: String, CaseIterable, Identifiable {
         case .medicalBay: return "medicalBay"
         case .shieldGenerator: return "shieldGenerator"
         case .cloneVats: return "cloneVats"
+        case .temporalRift: return "temporalRift"
+        case .megaStructure: return "megaStructure"
         }
     }
 }

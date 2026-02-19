@@ -164,6 +164,11 @@ final class GridModel {
         return 1.0 + bonus
     }
     
+    /// Check if any adjacent tile has a specific building type (active)
+    func hasAdjacentBuilding(col: Int, row: Int, type: BuildingType) -> Bool {
+        neighbors(col: col, row: row).contains { $0.buildingType == type && $0.isActive }
+    }
+    
     /// Check if a tile has any adjacency bonus (for visual indicator)
     func hasAdjacencyBonus(col: Int, row: Int) -> Bool {
         adjacencyMultiplier(col: col, row: row) > 1.01

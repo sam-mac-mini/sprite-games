@@ -2,9 +2,6 @@
 
 ## 🔖 Backlog
 - [ ] TICK-014: Guided early loops — tutorial flow for first 3-5 runs | Priority: medium | Created: 2026-02-18
-- [ ] TICK-016: Time Dilation & Time Rewind abilities — temporal branch active abilities | Priority: medium | Created: 2026-02-19
-- [ ] TICK-017: Event Scanner — preview upcoming event (RES-02 tech) | Priority: low | Created: 2026-02-19
-
 ## 🔨 In Progress
 
 ## 👀 Review
@@ -24,3 +21,5 @@
 - [x] TICK-012: Tech tree — 29 unlocks, 4 branches, TechTreeScene UI, purchase system | Completed: 2026-02-19
 - [x] TICK-013: Meta progression — MetaState persistence, KP awards, TechEffects integration | Completed: 2026-02-19
 - [x] TICK-015: New building gameplay — Storage Depot (stability regen), Medical Bay (blocks sickness), Shield Gen (escalation protection), Clone Vats (colonist production) | Completed: 2026-02-19
+- [x] TICK-016: Temporal abilities — Time Dilation, Time Rewind, Echo Memory, Paradox Shield, Chrono Mastery + Emergency Protocols | Completed: 2026-02-19
+- [x] TICK-017: Event Scanner — preview upcoming events 30s before firing | Completed: 2026-02-19

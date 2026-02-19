@@ -41,11 +41,24 @@ final class ResourceSystem {
             biomassDelta += prod.biomass * workerMult * adjacencyMult * techProdMult
             researchDelta += prod.research * workerMult * adjacencyMult * techProdMult
             
-            // Consumption (always costs, NOT affected by adjacency)
+            // Consumption (Power Grid tech: adjacent solar arrays reduce energy cost 30%)
+            let energyReduction: Double
+            if techEffects?.meta.isUnlocked("INF-06") == true && buildingType != .solarArray {
+                let hasAdjacentSolar = grid.hasAdjacentBuilding(col: col, row: row, type: .solarArray)
+                energyReduction = hasAdjacentSolar ? 0.7 : 1.0
+            } else {
+                energyReduction = 1.0
+            }
             metalDelta -= cons.metal
-            energyDelta -= cons.energy
+            energyDelta -= cons.energy * energyReduction
             biomassDelta -= cons.biomass
             researchDelta -= cons.research
+        }
+        
+        // Temporal Rift: drains stability instead of energy (-0.5/s per worker)
+        for (_, _, tile) in grid.allBuildings() {
+            guard tile.isActive, tile.buildingType == .temporalRift, tile.assignedWorkers > 0 else { continue }
+            state.stability = max(0, state.stability - 0.5 * Double(tile.assignedWorkers))
         }
         
         // Storage Depot: passive stability regeneration when staffed (+0.3/s per worker)
