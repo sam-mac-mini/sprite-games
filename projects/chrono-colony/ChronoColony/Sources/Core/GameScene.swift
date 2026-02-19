@@ -2,7 +2,7 @@ import SpriteKit
 import GameplayKit
 
 /// Main game scene — owns the simulation loop
-class GameScene: SKScene, BuildMenuDelegate {
+class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     
     // MARK: - Core
     private var gameState: GameState!
@@ -14,6 +14,15 @@ class GameScene: SKScene, BuildMenuDelegate {
     private var hudRenderer: HUDRenderer!
     private var buildMenu: BuildMenuRenderer!
     private var infoPanel: InfoPanelRenderer?
+    private var eventOverlay: EventOverlayRenderer!
+    
+    // MARK: - Events
+    private var eventSystem: EventSystem!
+    
+    // MARK: - Escalation
+    private var escalationSystem: EscalationSystem!
+    private var escalationTintNode: SKShapeNode?
+    private var lastWarningFlash: TimeInterval = 0
     
     // MARK: - Camera
     private var cameraNode: SKCameraNode!
@@ -100,6 +109,26 @@ class GameScene: SKScene, BuildMenuDelegate {
         buildMenu = BuildMenuRenderer(sceneSize: size)
         buildMenu.delegate = self
         cameraNode.addChild(buildMenu.menuNode)
+        
+        // Escalation system
+        escalationSystem = EscalationSystem()
+        
+        // Red tint overlay for escalation
+        let tint = SKShapeNode(rectOf: CGSize(width: size.width * 2, height: size.height * 2))
+        tint.fillColor = SKColor.red
+        tint.strokeColor = .clear
+        tint.alpha = 0
+        tint.zPosition = 150
+        tint.name = "escalationTint"
+        cameraNode.addChild(tint)
+        escalationTintNode = tint
+        
+        // Event system
+        eventSystem = EventSystem()
+        eventSystem.setup(rng: &gameState.rng)
+        eventOverlay = EventOverlayRenderer(sceneSize: size)
+        eventOverlay.delegate = self
+        cameraNode.addChild(eventOverlay.overlayNode)
         
         // Start
         gameState.phase = .expansion
@@ -248,11 +277,23 @@ class GameScene: SKScene, BuildMenuDelegate {
             return
         }
         
-        tickAccumulator += dt
-        if tickAccumulator >= GameConstants.simulationTickRate {
-            tickAccumulator -= GameConstants.simulationTickRate
-            resourceSystem.tick(grid: gridModel, state: gameState)
+        // Event system — check for new events (pauses resource ticks while showing)
+        if !eventSystem.isShowingEvent {
+            tickAccumulator += dt
+            if tickAccumulator >= GameConstants.simulationTickRate {
+                tickAccumulator -= GameConstants.simulationTickRate
+                resourceSystem.tick(grid: gridModel, state: gameState)
+                // Escalation effects on each sim tick
+                escalationSystem.tick(grid: gridModel, state: gameState, rng: &gameState.rng)
+            }
         }
+        
+        if let event = eventSystem.update(dt: dt, state: gameState, rng: &gameState.rng) {
+            eventOverlay.show(event: event)
+        }
+        
+        // Escalation visual effects
+        updateEscalationVisuals(dt: dt)
         
         gridRenderer.update(from: gridModel, state: gameState)
         hudRenderer.update(state: gameState)
@@ -289,6 +330,11 @@ class GameScene: SKScene, BuildMenuDelegate {
         }
         
         let uiLocation = touch.location(in: cameraNode)
+        
+        // Event overlay takes priority
+        if eventOverlay.handleTap(at: uiLocation) {
+            return
+        }
         
         // Build menu
         if buildMenu.handleTap(at: uiLocation) {
@@ -433,6 +479,59 @@ class GameScene: SKScene, BuildMenuDelegate {
         let panel = InfoPanelRenderer(buildingType: type, tile: tile, sceneSize: size)
         cameraNode.addChild(panel.node)
         infoPanel = panel
+    }
+    
+    // MARK: - Escalation Visuals
+    
+    private func updateEscalationVisuals(dt: TimeInterval) {
+        let visuals = escalationSystem.visualParams(state: gameState)
+        
+        // Red tint overlay
+        escalationTintNode?.alpha = visuals.screenTintAlpha
+        
+        // Camera micro-shake during escalation
+        if visuals.shakeIntensity > 0.1 {
+            let shake = visuals.shakeIntensity
+            let ox = CGFloat.random(in: -shake...shake)
+            let oy = CGFloat.random(in: -shake...shake)
+            cameraNode.position = CGPoint(
+                x: size.width / 2 + ox,
+                y: size.height / 2 + oy
+            )
+        }
+        
+        // Periodic warning flash
+        if gameState.phase == .escalation {
+            lastWarningFlash += dt
+            if lastWarningFlash >= visuals.warningFlashInterval {
+                lastWarningFlash = 0
+                showEscalationFlash()
+            }
+        }
+    }
+    
+    private func showEscalationFlash() {
+        let power = escalationSystem.intensity(state: gameState)
+        let messages = power > 0.7
+            ? ["⚠ CRITICAL INSTABILITY", "SYSTEMS FAILING", "EVACUATE?"]
+            : ["⚠ Stellar instability rising", "Structure integrity declining", "Energy reserves draining"]
+        
+        let msg = messages[Int.random(in: 0..<messages.count)]
+        let flash = SKLabelNode(fontNamed: "Menlo-Bold")
+        flash.text = msg
+        flash.fontSize = power > 0.7 ? 14 : 12
+        flash.fontColor = power > 0.7 ? .red : .orange
+        flash.position = CGPoint(x: 0, y: size.height * 0.15)
+        flash.zPosition = 190
+        flash.alpha = 0
+        cameraNode.addChild(flash)
+        
+        flash.run(SKAction.sequence([
+            SKAction.fadeIn(withDuration: 0.15),
+            SKAction.wait(forDuration: 1.5),
+            SKAction.fadeOut(withDuration: 0.5),
+            SKAction.removeFromParent()
+        ]))
     }
     
     // MARK: - Collapse
@@ -668,6 +767,10 @@ class GameScene: SKScene, BuildMenuDelegate {
         gameState = GameState()
         gridModel = GridModel()
         gridModel.generateMap(rng: &gameState.rng)
+        eventSystem.setup(rng: &gameState.rng)
+        eventOverlay.dismiss()
+        escalationTintNode?.alpha = 0
+        lastWarningFlash = 0
         gameState.phase = .expansion
         lastTickTime = 0
         tickAccumulator = 0
@@ -688,4 +791,22 @@ class GameScene: SKScene, BuildMenuDelegate {
     
     func buildMenuDidSelectDemolish() { gridRenderer.clearSelection() }
     func buildMenuDidSelectAssignWorker() { gridRenderer.clearSelection() }
+    
+    // MARK: - EventOverlayDelegate
+    
+    func eventOverlayDidChoose(choiceIndex: Int) {
+        eventSystem.resolveChoice(choiceIndex: choiceIndex, grid: gridModel, state: gameState, rng: &gameState.rng)
+        eventOverlay.dismiss()
+        
+        // Flash effect for feedback
+        let flash = SKShapeNode(rectOf: CGSize(width: size.width * 2, height: size.height * 2))
+        flash.fillColor = SKColor.white.withAlphaComponent(0.15)
+        flash.strokeColor = .clear
+        flash.zPosition = 350
+        cameraNode.addChild(flash)
+        flash.run(SKAction.sequence([
+            SKAction.fadeOut(withDuration: 0.3),
+            SKAction.removeFromParent()
+        ]))
+    }
 }

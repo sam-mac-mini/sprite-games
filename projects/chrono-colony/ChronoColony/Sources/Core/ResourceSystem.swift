@@ -69,10 +69,7 @@ final class ResourceSystem {
             stabilityDelta += 0.2
         }
         
-        // Escalation phase penalty
-        if state.phase == .escalation {
-            stabilityDelta -= 0.3
-        }
+        // Escalation stability drain handled by EscalationSystem
         
         state.stability = min(GameConstants.maxStability, max(0, state.stability + stabilityDelta))
         state.stabilityDelta = stabilityDelta
