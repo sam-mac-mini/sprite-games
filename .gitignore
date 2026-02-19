@@ -31,3 +31,6 @@ Pods/
 .idea/
 *.code-workspace
 .vscode/
+*.xcodeproj/
+*.xcuserdata/
+DerivedData/
