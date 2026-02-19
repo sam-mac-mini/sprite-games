@@ -34,3 +34,13 @@ Pods/
 *.xcodeproj/
 *.xcuserdata/
 DerivedData/
+
+# Screenshots and debug images
+*.png
+!projects/*/ChronoColony/Assets.xcassets/**/*.png
+
+# Workspace state
+.openclaw/
+
+# Source builds
+projects/*/src/

@@ -55,7 +55,7 @@ struct TechEffects {
             if meta.isUnlocked("INF-05") { mult += 0.25 }
         case .researchLab:
             if meta.isUnlocked("RES-01") { mult += 0.25 }
-        case .solarArray:
+        case .solarArray, .storageDepot, .medicalBay, .shieldGenerator, .cloneVats:
             break
         }
         return mult

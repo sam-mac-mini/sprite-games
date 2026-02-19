@@ -62,6 +62,10 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         // World layer
         addChild(worldNode)
         
+        // Load meta progression first (needed for build menu filtering)
+        let meta = MetaState.load()
+        techEffects = TechEffects(meta: meta)
+        
         // Initialize systems
         gameState = GameState()
         gridModel = GridModel()
@@ -107,7 +111,12 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         cameraNode.addChild(hudRenderer.hudNode)
         
         // Build menu (attached to camera)
-        buildMenu = BuildMenuRenderer(sceneSize: size)
+        // Filter available buildings based on tech unlocks
+        let unlockedBuildings = BuildingType.allCases.filter { type in
+            guard let techID = type.requiredTechID else { return true }
+            return techEffects.meta.isUnlocked(techID)
+        }
+        buildMenu = BuildMenuRenderer(sceneSize: size, unlockedBuildings: unlockedBuildings)
         buildMenu.delegate = self
         cameraNode.addChild(buildMenu.menuNode)
         
@@ -131,9 +140,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         eventOverlay.delegate = self
         cameraNode.addChild(eventOverlay.overlayNode)
         
-        // Load meta progression and apply tech effects
-        let meta = MetaState.load()
-        techEffects = TechEffects(meta: meta)
+        // Apply tech effects to starting state
         applyTechEffectsToState()
         
         // Start
@@ -735,7 +742,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         
         // Summary card
         let cardWidth: CGFloat = size.width * 0.85
-        let cardHeight: CGFloat = 380
+        let cardHeight: CGFloat = 440
         let card = SKShapeNode(rectOf: CGSize(width: cardWidth, height: cardHeight), cornerRadius: 16)
         card.fillColor = SKColor(red: 0.08, green: 0.08, blue: 0.14, alpha: 1)
         card.strokeColor = SKColor(red: 0.2, green: 0.25, blue: 0.4, alpha: 1)

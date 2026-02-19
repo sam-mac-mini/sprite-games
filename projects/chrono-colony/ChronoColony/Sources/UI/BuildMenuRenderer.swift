@@ -18,30 +18,36 @@ final class BuildMenuRenderer {
     private var buttonSize: CGFloat = 46
     private var buttonSpacing: CGFloat = 4
     
+    /// Buildings available for this loop (filtered by tech unlocks)
+    private(set) var availableBuildings: [BuildingType] = BuildingType.starterBuildings
+    
     var selectedBuildingType: BuildingType? {
-        guard let idx = selectedIndex, idx < BuildingType.allCases.count else { return nil }
-        return BuildingType.allCases[idx]
+        guard let idx = selectedIndex, idx < availableBuildings.count else { return nil }
+        return availableBuildings[idx]
     }
     
     var isDemolishMode: Bool {
-        selectedIndex == BuildingType.allCases.count
+        selectedIndex == availableBuildings.count
     }
     
     var isAssignWorkerMode: Bool {
-        selectedIndex == BuildingType.allCases.count + 1
+        selectedIndex == availableBuildings.count + 1
     }
     
     var isToggleMode: Bool {
-        selectedIndex == BuildingType.allCases.count + 2
+        selectedIndex == availableBuildings.count + 2
     }
     
-    init(sceneSize: CGSize) {
+    init(sceneSize: CGSize, unlockedBuildings: [BuildingType]? = nil) {
         menuNode = SKNode()
         menuNode.name = "buildMenu"
         menuNode.zPosition = 100
         
+        // Set available buildings
+        availableBuildings = unlockedBuildings ?? BuildingType.starterBuildings
+        
         // Adapt button size to screen width
-        let allItems = BuildingType.allCases.count + 3 // +demolish +assign +toggle
+        let allItems = availableBuildings.count + 3 // +demolish +assign +toggle
         let maxWidth = sceneSize.width - 20
         let idealTotal = CGFloat(allItems) * buttonSize + CGFloat(allItems - 1) * buttonSpacing
         if idealTotal > maxWidth {
@@ -62,7 +68,7 @@ final class BuildMenuRenderer {
         menuNode.addChild(bgPanel)
         
         // Building buttons
-        for (i, type) in BuildingType.allCases.enumerated() {
+        for (i, type) in availableBuildings.enumerated() {
             let btn = makeButton(
                 symbol: type.symbol,
                 subtitle: "\(Int(type.metalCost))⛏",
@@ -76,7 +82,7 @@ final class BuildMenuRenderer {
         }
         
         // Demolish button
-        let demolishIdx = BuildingType.allCases.count
+        let demolishIdx = availableBuildings.count
         let demolishBtn = makeButton(
             symbol: "🗑",
             subtitle: "Demo",
@@ -188,7 +194,8 @@ final class BuildMenuRenderer {
     }
     
     func updateAffordability(state: GameState) {
-        for (i, type) in BuildingType.allCases.enumerated() {
+        for (i, type) in availableBuildings.enumerated() {
+            guard i < buttons.count else { break }
             let canAfford = state.metal >= type.metalCost
             buttons[i].alpha = canAfford ? 1.0 : 0.4
         }

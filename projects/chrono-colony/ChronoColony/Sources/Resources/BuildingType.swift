@@ -7,16 +7,41 @@ enum BuildingType: String, CaseIterable, Identifiable {
     case farm = "Farm"
     case solarArray = "Solar Array"
     case researchLab = "Research Lab"
+    // Tech tree unlocks
+    case storageDepot = "Storage Depot"
+    case medicalBay = "Medical Bay"
+    case shieldGenerator = "Shield Generator"
+    case cloneVats = "Clone Vats"
     
     var id: String { rawValue }
     
     // MARK: - Construction Cost
+    /// Tech ID required to unlock this building (nil = always available)
+    var requiredTechID: String? {
+        switch self {
+        case .storageDepot: return "INF-03"
+        case .medicalBay: return "COL-04"
+        case .shieldGenerator: return "RES-05"
+        case .cloneVats: return "COL-07"
+        default: return nil
+        }
+    }
+    
+    /// Starter buildings always available
+    static var starterBuildings: [BuildingType] {
+        [.metalExtractor, .farm, .solarArray, .researchLab]
+    }
+    
     var metalCost: Double {
         switch self {
         case .metalExtractor: return 40
         case .farm: return 30
         case .solarArray: return 60
         case .researchLab: return 50
+        case .storageDepot: return 45
+        case .medicalBay: return 55
+        case .shieldGenerator: return 70
+        case .cloneVats: return 80
         }
     }
     
@@ -31,6 +56,14 @@ enum BuildingType: String, CaseIterable, Identifiable {
             return ResourceBundle(metal: 0, energy: 4, biomass: 0, research: 0)
         case .researchLab:
             return ResourceBundle(metal: 0, energy: 0, biomass: 0, research: 2)
+        case .storageDepot:
+            return ResourceBundle(metal: 0, energy: 0, biomass: 0, research: 0)
+        case .medicalBay:
+            return ResourceBundle(metal: 0, energy: 0, biomass: 0, research: 0)
+        case .shieldGenerator:
+            return ResourceBundle(metal: 0, energy: 0, biomass: 0, research: 0)
+        case .cloneVats:
+            return ResourceBundle(metal: 0, energy: 0, biomass: 0, research: 0)
         }
     }
     
@@ -45,6 +78,14 @@ enum BuildingType: String, CaseIterable, Identifiable {
             return ResourceBundle(metal: 0, energy: 0, biomass: 0, research: 0)
         case .researchLab:
             return ResourceBundle(metal: 0, energy: 2, biomass: 0.5, research: 0)
+        case .storageDepot:
+            return ResourceBundle(metal: 0, energy: 0, biomass: 0, research: 0)
+        case .medicalBay:
+            return ResourceBundle(metal: 0, energy: 1.5, biomass: 0.5, research: 0)
+        case .shieldGenerator:
+            return ResourceBundle(metal: 0, energy: 3, biomass: 0, research: 0)
+        case .cloneVats:
+            return ResourceBundle(metal: 0, energy: 2, biomass: 2, research: 0)
         }
     }
     
@@ -64,6 +105,10 @@ enum BuildingType: String, CaseIterable, Identifiable {
         case .farm: return SKColor(red: 0.3, green: 0.7, blue: 0.3, alpha: 1)
         case .solarArray: return SKColor(red: 0.9, green: 0.8, blue: 0.2, alpha: 1)
         case .researchLab: return SKColor(red: 0.3, green: 0.5, blue: 0.9, alpha: 1)
+        case .storageDepot: return SKColor(red: 0.6, green: 0.5, blue: 0.3, alpha: 1)
+        case .medicalBay: return SKColor(red: 0.9, green: 0.3, blue: 0.3, alpha: 1)
+        case .shieldGenerator: return SKColor(red: 0.3, green: 0.8, blue: 0.8, alpha: 1)
+        case .cloneVats: return SKColor(red: 0.7, green: 0.3, blue: 0.7, alpha: 1)
         }
     }
     
@@ -73,6 +118,10 @@ enum BuildingType: String, CaseIterable, Identifiable {
         case .farm: return "🌱"
         case .solarArray: return "☀"
         case .researchLab: return "🔬"
+        case .storageDepot: return "📦"
+        case .medicalBay: return "🏥"
+        case .shieldGenerator: return "🛡"
+        case .cloneVats: return "🧬"
         }
     }
     
@@ -83,6 +132,11 @@ enum BuildingType: String, CaseIterable, Identifiable {
         case .farm: return "farm"
         case .solarArray: return "solarArray"
         case .researchLab: return "researchLab"
+        // Tech-unlocked buildings use Kenney structures
+        case .storageDepot: return "storageDepot"
+        case .medicalBay: return "medicalBay"
+        case .shieldGenerator: return "shieldGenerator"
+        case .cloneVats: return "cloneVats"
         }
     }
 }

@@ -1,11 +1,12 @@
 # KANBAN — Chrono Colony
 
 ## 🔖 Backlog
-- [ ] TICK-012: Tech tree — 4 branches, ~28-32 unlocks, Knowledge Point spending | Priority: high | Created: 2026-02-18
-- [ ] TICK-013: Meta progression — persistent Knowledge Points, unlock tracking across loops | Priority: high | Created: 2026-02-18
 - [ ] TICK-014: Guided early loops — tutorial flow for first 3-5 runs | Priority: medium | Created: 2026-02-18
+- [ ] TICK-016: Time Dilation & Time Rewind abilities — temporal branch active abilities | Priority: medium | Created: 2026-02-19
+- [ ] TICK-017: Event Scanner — preview upcoming event (RES-02 tech) | Priority: low | Created: 2026-02-19
 
 ## 🔨 In Progress
+- [ ] TICK-015: New buildings from tech tree — Storage Depot, Medical Bay, Shield Gen, Clone Vats gameplay logic | Priority: high | Assigned: 2026-02-19
 
 ## 👀 Review
 
@@ -20,4 +21,6 @@
 - [x] TICK-011: Building toggle — disable/enable buildings to manage energy, dimmed visual state | Completed: 2026-02-18
 - [x] TICK-006: Colonist UX — 2 workers per building, diminishing returns, efficiency display | Completed: 2026-02-18
 - [x] TICK-008: Collapse polish — 3-phase shake, triple flash, dramatic text, expanded scoring | Completed: 2026-02-18
-- [x] TICK-009: Sound + Visuals — 10 Kenney CC0 SFX, programmatic building sprites, deposit sprites, sprite caching | Completed: 2026-02-18
+- [x] TICK-009: Sound + Visuals — 10 Kenney CC0 SFX, Kenney Sci-Fi RTS sprite art, proper terrain textures | Completed: 2026-02-18
+- [x] TICK-012: Tech tree — 29 unlocks, 4 branches, TechTreeScene UI, purchase system | Completed: 2026-02-19
+- [x] TICK-013: Meta progression — MetaState persistence, KP awards, TechEffects integration | Completed: 2026-02-19

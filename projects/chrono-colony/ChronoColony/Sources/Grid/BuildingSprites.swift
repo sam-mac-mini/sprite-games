@@ -175,6 +175,43 @@ final class BuildingSprites {
             dot.glowWidth = 2
             dot.position = CGPoint(x: -s * 0.25, y: s * 0.12)
             container.addChild(dot)
+            
+        case .storageDepot:
+            let crate = SKShapeNode(rectOf: CGSize(width: s * 0.7, height: s * 0.5), cornerRadius: 3)
+            crate.fillColor = SKColor(red: 0.5, green: 0.4, blue: 0.25, alpha: alpha)
+            crate.strokeColor = SKColor(red: 0.65, green: 0.55, blue: 0.35, alpha: alpha)
+            crate.lineWidth = 1.5
+            container.addChild(crate)
+            
+        case .medicalBay:
+            let mbBg = SKShapeNode(circleOfRadius: s * 0.3)
+            mbBg.fillColor = SKColor(red: 0.95, green: 0.95, blue: 0.95, alpha: alpha)
+            mbBg.strokeColor = SKColor(red: 0.8, green: 0.2, blue: 0.2, alpha: alpha)
+            mbBg.lineWidth = 1.5
+            container.addChild(mbBg)
+            let crossH = SKShapeNode(rectOf: CGSize(width: s * 0.3, height: s * 0.1))
+            crossH.fillColor = SKColor(red: 0.9, green: 0.2, blue: 0.2, alpha: alpha)
+            crossH.strokeColor = .clear
+            container.addChild(crossH)
+            let crossV = SKShapeNode(rectOf: CGSize(width: s * 0.1, height: s * 0.3))
+            crossV.fillColor = SKColor(red: 0.9, green: 0.2, blue: 0.2, alpha: alpha)
+            crossV.strokeColor = .clear
+            container.addChild(crossV)
+            
+        case .shieldGenerator:
+            let dome = SKShapeNode(circleOfRadius: s * 0.3)
+            dome.fillColor = SKColor(red: 0.2, green: 0.7, blue: 0.7, alpha: alpha * 0.5)
+            dome.strokeColor = SKColor(red: 0.3, green: 0.9, blue: 0.9, alpha: alpha)
+            dome.lineWidth = 2
+            dome.glowWidth = 3
+            container.addChild(dome)
+            
+        case .cloneVats:
+            let vat = SKShapeNode(rectOf: CGSize(width: s * 0.35, height: s * 0.55), cornerRadius: s * 0.1)
+            vat.fillColor = SKColor(red: 0.5, green: 0.2, blue: 0.55, alpha: alpha * 0.6)
+            vat.strokeColor = SKColor(red: 0.7, green: 0.3, blue: 0.8, alpha: alpha)
+            vat.lineWidth = 1.5
+            container.addChild(vat)
         }
         
         return container
@@ -224,29 +261,17 @@ final class BuildingSprites {
             container.addChild(center)
             
         case .anomaly:
-            // Glowing rift/portal
             let outer = SKShapeNode(circleOfRadius: s * 0.22)
             outer.fillColor = SKColor(red: 0.35, green: 0.1, blue: 0.5, alpha: 0.4)
             outer.strokeColor = SKColor(red: 0.6, green: 0.3, blue: 0.8, alpha: 0.8)
             outer.lineWidth = 1.5
             outer.glowWidth = 5
             container.addChild(outer)
-            
             let inner = SKShapeNode(circleOfRadius: s * 0.1)
             inner.fillColor = SKColor(red: 0.7, green: 0.4, blue: 1, alpha: 0.7)
             inner.strokeColor = .clear
             inner.glowWidth = 3
             container.addChild(inner)
-            
-            // Particles (static dots around rift)
-            for i in 0..<5 {
-                let particle = SKShapeNode(circleOfRadius: s * 0.02)
-                particle.fillColor = SKColor(red: 0.8, green: 0.6, blue: 1, alpha: 0.7)
-                particle.strokeColor = .clear
-                let angle = CGFloat(i) * .pi * 2 / 5
-                particle.position = CGPoint(x: cos(angle) * s * 0.28, y: sin(angle) * s * 0.28)
-                container.addChild(particle)
-            }
         }
         
         return container
