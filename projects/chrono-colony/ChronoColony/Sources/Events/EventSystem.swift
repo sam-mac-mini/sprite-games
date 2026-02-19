@@ -38,6 +38,12 @@ final class EventSystem {
     
     // MARK: - Tick
     
+    /// Set of event IDs blocked by Medical Bay
+    private let sicknessEventIDs: Set<String> = ["colonist_sickness"]
+    
+    /// Whether the colony has an active Medical Bay
+    var hasMedicalBay: Bool = false
+    
     /// Call every frame with delta time. Returns an event if one should be shown.
     func update(dt: TimeInterval, state: GameState, rng: inout SeededRandomGenerator) -> GameEvent? {
         guard !isShowingEvent else { return nil }
@@ -49,7 +55,16 @@ final class EventSystem {
             accumulator = 0
             scheduleNextEvent(state: state, rng: &rng)
             
-            if let event = deck.draw(state: state) {
+            if var event = deck.draw(state: state) {
+                // Medical Bay blocks sickness events
+                if hasMedicalBay && sicknessEventIDs.contains(event.id) {
+                    // Skip — draw next event instead (or none)
+                    if let replacement = deck.draw(state: state) {
+                        event = replacement
+                    } else {
+                        return nil
+                    }
+                }
                 currentEvent = event
                 isShowingEvent = true
                 return event

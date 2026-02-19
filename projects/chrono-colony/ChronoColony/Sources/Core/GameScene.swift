@@ -301,6 +301,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             }
         }
         
+        // Update Medical Bay status for event filtering
+        eventSystem.hasMedicalBay = gridModel.allBuildings().contains { $0.tile.buildingType == .medicalBay && $0.tile.isActive }
+        
         if let event = eventSystem.update(dt: dt, state: gameState, rng: &gameState.rng) {
             run(SoundManager.shared.event)
             eventOverlay.show(event: event)

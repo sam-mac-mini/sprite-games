@@ -48,6 +48,22 @@ final class ResourceSystem {
             researchDelta -= cons.research
         }
         
+        // Storage Depot: passive stability regeneration when staffed (+0.3/s per worker)
+        for (_, _, tile) in grid.allBuildings() {
+            guard tile.isActive, tile.buildingType == .storageDepot, tile.assignedWorkers > 0 else { continue }
+            state.stability = min(GameConstants.maxStability, state.stability + 0.3 * Double(tile.assignedWorkers))
+        }
+        
+        // Clone Vats: produce colonists (1 every 30 ticks = 30 seconds when staffed)
+        for (_, _, tile) in grid.allBuildings() {
+            guard tile.isActive, tile.buildingType == .cloneVats, tile.assignedWorkers > 0 else { continue }
+            state.cloneVatAccumulator += Double(tile.assignedWorkers) * 0.033 // ~1 colonist per 30s per worker
+            if state.cloneVatAccumulator >= 1.0 {
+                state.cloneVatAccumulator -= 1.0
+                state.totalColonists += 1
+            }
+        }
+        
         // Colonist biomass consumption (0.5 per colonist per tick, reduced by tech)
         let foodMult = techEffects?.colonistFoodMultiplier ?? 1.0
         let colonistBiomassCost = Double(state.totalColonists) * 0.5 * foodMult

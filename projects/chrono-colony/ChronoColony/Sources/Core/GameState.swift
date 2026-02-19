@@ -57,6 +57,9 @@ final class GameState: ObservableObject {
         return String(format: "%d:%02d", minutes, seconds)
     }
     
+    // MARK: - Clone Vats
+    var cloneVatAccumulator: Double = 0
+    
     // MARK: - Resource Deltas (per tick, for UI display)
     var metalDelta: Double = 0
     var energyDelta: Double = 0

@@ -33,6 +33,7 @@ final class EscalationSystem {
         
         // 3. Random building damage — chance increases with intensity
         //    At intensity 0.5+, ~5% chance per tick to damage a building
+        //    Shield Generators protect buildings in 3x3 area (halves damage chance)
         if power > 0.4 {
             let damageChance = (power - 0.4) * 0.08
             let roll = Double.random(in: 0..<1, using: &rng)
@@ -40,8 +41,14 @@ final class EscalationSystem {
                 let buildings = grid.allBuildings()
                 if !buildings.isEmpty {
                     let target = buildings[Int.random(in: 0..<buildings.count, using: &rng)]
-                    // Disable the building (remove worker) rather than destroy
-                    if target.tile.assignedWorkers > 0 {
+                    // Shield Generator protection — 50% chance to block
+                    if isShielded(col: target.col, row: target.row, grid: grid) {
+                        let shieldRoll = Double.random(in: 0..<1, using: &rng)
+                        if shieldRoll < 0.5 { /* shielded — skip damage */ }
+                        else if target.tile.assignedWorkers > 0 {
+                            grid.removeWorker(at: target.col, row: target.row, state: state)
+                        }
+                    } else if target.tile.assignedWorkers > 0 {
                         grid.removeWorker(at: target.col, row: target.row, state: state)
                     }
                 }
@@ -56,14 +63,43 @@ final class EscalationSystem {
                 let buildings = grid.allBuildings()
                 if !buildings.isEmpty {
                     let target = buildings[Int.random(in: 0..<buildings.count, using: &rng)]
-                    grid.demolishBuilding(at: target.col, row: target.row, state: state)
-                    // Remove refund (destruction, not intentional demolish)
-                    if let type = target.tile.buildingType {
-                        state.metal = max(0, state.metal - type.demolishRefund)
+                    // Shield protects from destruction too
+                    if isShielded(col: target.col, row: target.row, grid: grid) {
+                        let shieldRoll = Double.random(in: 0..<1, using: &rng)
+                        if shieldRoll < 0.5 { /* shielded */ }
+                        else {
+                            grid.demolishBuilding(at: target.col, row: target.row, state: state)
+                            if let type = target.tile.buildingType {
+                                state.metal = max(0, state.metal - type.demolishRefund)
+                            }
+                        }
+                    } else {
+                        grid.demolishBuilding(at: target.col, row: target.row, state: state)
+                        if let type = target.tile.buildingType {
+                            state.metal = max(0, state.metal - type.demolishRefund)
+                        }
                     }
                 }
             }
         }
+    }
+    
+    // MARK: - Shield Generator
+    
+    /// Check if a tile is within 3x3 range of an active Shield Generator
+    private func isShielded(col: Int, row: Int, grid: GridModel) -> Bool {
+        for dc in -1...1 {
+            for dr in -1...1 {
+                let nc = col + dc
+                let nr = row + dr
+                if let tile = grid.tile(at: nc, row: nr),
+                   tile.buildingType == .shieldGenerator,
+                   tile.isActive {
+                    return true
+                }
+            }
+        }
+        return false
     }
     
     // MARK: - Visual Effects
