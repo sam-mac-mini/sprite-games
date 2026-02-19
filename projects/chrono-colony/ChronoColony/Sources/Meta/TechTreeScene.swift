@@ -67,7 +67,6 @@ class TechTreeScene: SKScene {
         // Content area (scrollable) — between tab bar and start button
         contentNode = SKNode()
         contentNode.zPosition = 5
-        addChild(contentNode)
         
         // Clipping mask for scroll area
         let cropNode = SKCropNode()
