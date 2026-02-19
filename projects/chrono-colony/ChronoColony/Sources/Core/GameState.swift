@@ -47,8 +47,10 @@ final class GameState: ObservableObject {
     var availableColonists: Int { totalColonists - assignedColonists }
     
     // MARK: - Timer
+    var effectiveLoopDuration: TimeInterval = GameConstants.loopDuration
+    
     var remainingTime: TimeInterval {
-        max(0, GameConstants.loopDuration - elapsedTime)
+        max(0, effectiveLoopDuration - elapsedTime)
     }
     
     var remainingTimeFormatted: String {
@@ -59,6 +61,15 @@ final class GameState: ObservableObject {
     
     // MARK: - Clone Vats
     var cloneVatAccumulator: Double = 0
+    
+    // MARK: - Temporal Abilities
+    var timeScale: Double = 1.0         // 1.0 = normal, 0.5 = dilated
+    var timeDilationUsed: Bool = false
+    var timeDilationRemaining: TimeInterval = 0
+    var timeRewindUsed: Bool = false
+    
+    // MARK: - Echo Memory (TMP-01)
+    var firstBuildingPlacedThisLoop: Bool = false
     
     // MARK: - Resource Deltas (per tick, for UI display)
     var metalDelta: Double = 0

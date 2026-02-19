@@ -3,6 +3,7 @@ import SpriteKit
 /// Callback when player picks a choice
 protocol EventOverlayDelegate: AnyObject {
     func eventOverlayDidChoose(choiceIndex: Int)
+    func eventOverlayDidDismiss()
 }
 
 /// Renders the event popup as a modal overlay
@@ -12,7 +13,11 @@ final class EventOverlayRenderer {
     weak var delegate: EventOverlayDelegate?
     
     private var choiceButtons: [SKShapeNode] = []
+    private var dismissButton: SKShapeNode?
     private let sceneSize: CGSize
+    
+    /// Set to true when Emergency Protocols tech is unlocked
+    var canDismissEvents: Bool = false
     
     init(sceneSize: CGSize) {
         self.sceneSize = sceneSize
@@ -120,6 +125,28 @@ final class EventOverlayRenderer {
             btn.addChild(effectLabel)
         }
         
+        // Emergency Protocols: dismiss button
+        dismissButton = nil
+        if canDismissEvents {
+            let dismissY = choicesStartY - CGFloat(event.choices.count) * (buttonH + buttonSpacing) - 8
+            let btn = SKShapeNode(rectOf: CGSize(width: buttonW * 0.6, height: 30), cornerRadius: 8)
+            btn.fillColor = SKColor(red: 0.15, green: 0.08, blue: 0.08, alpha: 1)
+            btn.strokeColor = SKColor(red: 0.4, green: 0.15, blue: 0.15, alpha: 1)
+            btn.lineWidth = 1
+            btn.position = CGPoint(x: 0, y: dismissY)
+            btn.zPosition = 2
+            btn.name = "eventDismiss"
+            card.addChild(btn)
+            dismissButton = btn
+            
+            let lbl = SKLabelNode(fontNamed: "Menlo")
+            lbl.text = "✕ Dismiss (−5 Stability)"
+            lbl.fontSize = 10
+            lbl.fontColor = SKColor(red: 0.7, green: 0.3, blue: 0.3, alpha: 1)
+            lbl.verticalAlignmentMode = .center
+            btn.addChild(lbl)
+        }
+        
         // Animate in
         card.setScale(0.85)
         card.alpha = 0
@@ -154,6 +181,18 @@ final class EventOverlayRenderer {
                     SKAction.scale(to: 1.0, duration: 0.05)
                 ]))
                 delegate?.eventOverlayDidChoose(choiceIndex: i)
+                return true
+            }
+        }
+        
+        // Check dismiss button
+        if let dismissBtn = dismissButton, let parent = dismissBtn.parent {
+            let btnInOverlay = parent.convert(dismissBtn.position, to: overlayNode)
+            let halfW: CGFloat = (sceneSize.width * 0.88 - 30) * 0.3
+            let halfH: CGFloat = 15
+            let rect = CGRect(x: btnInOverlay.x - halfW, y: btnInOverlay.y - halfH, width: halfW * 2, height: halfH * 2)
+            if rect.contains(point) {
+                delegate?.eventOverlayDidDismiss()
                 return true
             }
         }

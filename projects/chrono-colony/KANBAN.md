@@ -6,7 +6,6 @@
 - [ ] TICK-017: Event Scanner — preview upcoming event (RES-02 tech) | Priority: low | Created: 2026-02-19
 
 ## 🔨 In Progress
-- [ ] TICK-015: New buildings from tech tree — Storage Depot, Medical Bay, Shield Gen, Clone Vats gameplay logic | Priority: high | Assigned: 2026-02-19
 
 ## 👀 Review
 
@@ -24,3 +23,4 @@
 - [x] TICK-009: Sound + Visuals — 10 Kenney CC0 SFX, Kenney Sci-Fi RTS sprite art, proper terrain textures | Completed: 2026-02-18
 - [x] TICK-012: Tech tree — 29 unlocks, 4 branches, TechTreeScene UI, purchase system | Completed: 2026-02-19
 - [x] TICK-013: Meta progression — MetaState persistence, KP awards, TechEffects integration | Completed: 2026-02-19
+- [x] TICK-015: New building gameplay — Storage Depot (stability regen), Medical Bay (blocks sickness), Shield Gen (escalation protection), Clone Vats (colonist production) | Completed: 2026-02-19

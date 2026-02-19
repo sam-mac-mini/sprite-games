@@ -12,7 +12,7 @@ final class EventSystem {
     /// Whether an event is currently being displayed (pauses timer)
     var isShowingEvent: Bool = false
     /// The currently displayed event (if any)
-    private(set) var currentEvent: GameEvent?
+    var currentEvent: GameEvent?
     
     // MARK: - Timing Constants
     
@@ -44,12 +44,30 @@ final class EventSystem {
     /// Whether the colony has an active Medical Bay
     var hasMedicalBay: Bool = false
     
+    /// Whether the Event Scanner tech is unlocked (RES-02)
+    var hasEventScanner: Bool = false
+    
+    /// Preview of the next event (visible when scanner is active and event is within 30s)
+    private(set) var upcomingEventPreview: String?
+    
     /// Call every frame with delta time. Returns an event if one should be shown.
     func update(dt: TimeInterval, state: GameState, rng: inout SeededRandomGenerator) -> GameEvent? {
         guard !isShowingEvent else { return nil }
         guard state.phase == .expansion || state.phase == .escalation else { return nil }
         
         accumulator += dt
+        
+        // Event Scanner: show preview when within 30s of next event
+        if hasEventScanner && !isShowingEvent {
+            let timeUntilEvent = nextEventTimer - accumulator
+            if timeUntilEvent <= 30 && timeUntilEvent > 0 {
+                upcomingEventPreview = "⚠ Event incoming in \(Int(timeUntilEvent))s"
+            } else {
+                upcomingEventPreview = nil
+            }
+        } else {
+            upcomingEventPreview = nil
+        }
         
         if accumulator >= nextEventTimer {
             accumulator = 0

@@ -150,6 +150,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         buildMenu.updateAffordability(state: gameState)
         
         showTutorialHint()
+        setupTemporalButtons()
         
         // Pinch gesture
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
@@ -221,17 +222,23 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             }
         }
         
-        // Update status line based on phase
+        // Update status line based on phase + event scanner
         if let statusLine = panel.childNode(withName: "statusLine") as? SKLabelNode {
-            switch gameState.phase {
-            case .expansion:
-                let buildings = gridModel.allBuildings().count
-                statusLine.text = "🏗 \(buildings) buildings • \(gameState.availableColonists) workers free"
-            case .escalation:
-                statusLine.text = "⚠ Stellar instability — systems failing!"
-                statusLine.fontColor = .orange
-            default:
-                statusLine.text = ""
+            if let preview = eventSystem.upcomingEventPreview {
+                statusLine.text = preview
+                statusLine.fontColor = SKColor(red: 1, green: 0.8, blue: 0.3, alpha: 1)
+            } else {
+                statusLine.fontColor = SKColor(white: 0.45, alpha: 1)
+                switch gameState.phase {
+                case .expansion:
+                    let buildings = gridModel.allBuildings().count
+                    statusLine.text = "🏗 \(buildings) buildings • \(gameState.availableColonists) workers free"
+                case .escalation:
+                    statusLine.text = "⚠ Stellar instability — systems failing!"
+                    statusLine.fontColor = .orange
+                default:
+                    statusLine.text = ""
+                }
             }
         }
     }
@@ -255,6 +262,198 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         ]))
     }
     
+    // MARK: - Temporal Abilities
+    
+    private func setupTemporalButtons() {
+        if techEffects.timeDilationAvailable {
+            let btn = SKShapeNode(rectOf: CGSize(width: 90, height: 30), cornerRadius: 8)
+            btn.fillColor = SKColor(red: 0.3, green: 0.15, blue: 0.4, alpha: 0.9)
+            btn.strokeColor = SKColor(red: 0.6, green: 0.3, blue: 0.8, alpha: 1)
+            btn.lineWidth = 1.5
+            btn.position = CGPoint(x: -size.width / 2 + 60, y: size.height / 2 - safeTop - 120)
+            btn.zPosition = 110
+            btn.name = "timeDilationBtn"
+            cameraNode.addChild(btn)
+            
+            let label = SKLabelNode(fontNamed: "Menlo-Bold")
+            label.text = "⏳ SLOW"
+            label.fontSize = 11
+            label.fontColor = .white
+            label.verticalAlignmentMode = .center
+            label.name = "timeDilationLabel"
+            btn.addChild(label)
+        }
+        
+        if techEffects.timeRewindAvailable {
+            let btn = SKShapeNode(rectOf: CGSize(width: 90, height: 30), cornerRadius: 8)
+            btn.fillColor = SKColor(red: 0.15, green: 0.2, blue: 0.4, alpha: 0.9)
+            btn.strokeColor = SKColor(red: 0.3, green: 0.5, blue: 0.9, alpha: 1)
+            btn.lineWidth = 1.5
+            btn.position = CGPoint(x: -size.width / 2 + 60, y: size.height / 2 - safeTop - 155)
+            btn.zPosition = 110
+            btn.name = "timeRewindBtn"
+            cameraNode.addChild(btn)
+            
+            let label = SKLabelNode(fontNamed: "Menlo-Bold")
+            label.text = "⏪ REWIND"
+            label.fontSize = 11
+            label.fontColor = .white
+            label.verticalAlignmentMode = .center
+            label.name = "timeRewindLabel"
+            btn.addChild(label)
+        }
+    }
+    
+    private func activateTimeDilation() {
+        guard techEffects.timeDilationAvailable,
+              !gameState.timeDilationUsed,
+              gameState.phase == .expansion || gameState.phase == .escalation else { return }
+        
+        gameState.timeDilationUsed = true
+        gameState.timeScale = 0.5
+        gameState.timeDilationRemaining = 30.0
+        run(SoundManager.shared.event)
+        
+        if let btn = cameraNode.childNode(withName: "timeDilationBtn") as? SKShapeNode {
+            btn.fillColor = SKColor(red: 0.15, green: 0.08, blue: 0.2, alpha: 0.5)
+            if let lbl = btn.childNode(withName: "timeDilationLabel") as? SKLabelNode {
+                lbl.text = "⏳ ACTIVE"
+                lbl.fontColor = SKColor(red: 0.7, green: 0.4, blue: 1, alpha: 1)
+            }
+        }
+        
+        let flash = SKShapeNode(rectOf: CGSize(width: size.width * 2, height: size.height * 2))
+        flash.fillColor = SKColor(red: 0.4, green: 0.2, blue: 0.6, alpha: 0.2)
+        flash.strokeColor = .clear
+        flash.zPosition = 200
+        cameraNode.addChild(flash)
+        flash.run(SKAction.sequence([SKAction.fadeOut(withDuration: 0.5), SKAction.removeFromParent()]))
+        
+        let msg = SKLabelNode(fontNamed: "Menlo-Bold")
+        msg.text = "TIME DILATED — 50% SPEED"
+        msg.fontSize = 14
+        msg.fontColor = SKColor(red: 0.7, green: 0.4, blue: 1, alpha: 1)
+        msg.position = CGPoint(x: 0, y: size.height * 0.2)
+        msg.zPosition = 201
+        cameraNode.addChild(msg)
+        msg.run(SKAction.sequence([
+            SKAction.wait(forDuration: 2),
+            SKAction.fadeOut(withDuration: 0.5),
+            SKAction.removeFromParent()
+        ]))
+    }
+    
+    // MARK: - Time Rewind Snapshots
+    
+    private struct GameSnapshot {
+        let timestamp: TimeInterval
+        let metal: Double
+        let energy: Double
+        let biomass: Double
+        let research: Double
+        let stability: Double
+        let totalColonists: Int
+        let assignedColonists: Int
+        let phase: GamePhase
+    }
+    
+    private var snapshots: [GameSnapshot] = []
+    private var lastSnapshotTime: TimeInterval = 0
+    private let snapshotInterval: TimeInterval = 5.0
+    
+    private func takeSnapshotIfNeeded() {
+        guard techEffects.timeRewindAvailable else { return }
+        if gameState.elapsedTime - lastSnapshotTime >= snapshotInterval {
+            lastSnapshotTime = gameState.elapsedTime
+            let snap = GameSnapshot(
+                timestamp: gameState.elapsedTime,
+                metal: gameState.metal,
+                energy: gameState.energy,
+                biomass: gameState.biomass,
+                research: gameState.research,
+                stability: gameState.stability,
+                totalColonists: gameState.totalColonists,
+                assignedColonists: gameState.assignedColonists,
+                phase: gameState.phase
+            )
+            snapshots.append(snap)
+            // Keep last 60 seconds of snapshots (12 snapshots at 5s interval)
+            if snapshots.count > 12 { snapshots.removeFirst() }
+        }
+    }
+    
+    private func activateTimeRewind() {
+        guard techEffects.timeRewindAvailable,
+              !gameState.timeRewindUsed,
+              gameState.phase == .expansion || gameState.phase == .escalation,
+              !snapshots.isEmpty else { return }
+        
+        gameState.timeRewindUsed = true
+        run(SoundManager.shared.event)
+        
+        // Find snapshot closest to 30s ago
+        let targetTime = gameState.elapsedTime - 30
+        let snap = snapshots.min(by: { abs($0.timestamp - targetTime) < abs($1.timestamp - targetTime) })!
+        
+        // Restore state
+        gameState.elapsedTime = snap.timestamp
+        gameState.metal = snap.metal
+        gameState.energy = snap.energy
+        gameState.biomass = snap.biomass
+        gameState.research = snap.research
+        gameState.stability = snap.stability
+        gameState.totalColonists = snap.totalColonists
+        gameState.phase = snap.phase
+        
+        // Clear snapshots after rewind point
+        snapshots.removeAll { $0.timestamp > snap.timestamp }
+        
+        // Visual: blue rewind flash
+        let flash = SKShapeNode(rectOf: CGSize(width: size.width * 2, height: size.height * 2))
+        flash.fillColor = SKColor(red: 0.2, green: 0.3, blue: 0.8, alpha: 0.3)
+        flash.strokeColor = .clear
+        flash.zPosition = 200
+        cameraNode.addChild(flash)
+        flash.run(SKAction.sequence([SKAction.fadeOut(withDuration: 0.8), SKAction.removeFromParent()]))
+        
+        let msg = SKLabelNode(fontNamed: "Menlo-Bold")
+        msg.text = "⏪ TIME REWOUND — \(Int(gameState.elapsedTime / 60)):\(String(format: "%02d", Int(gameState.elapsedTime) % 60))"
+        msg.fontSize = 14
+        msg.fontColor = SKColor(red: 0.4, green: 0.6, blue: 1, alpha: 1)
+        msg.position = CGPoint(x: 0, y: size.height * 0.2)
+        msg.zPosition = 201
+        cameraNode.addChild(msg)
+        msg.run(SKAction.sequence([
+            SKAction.wait(forDuration: 2),
+            SKAction.fadeOut(withDuration: 0.5),
+            SKAction.removeFromParent()
+        ]))
+        
+        // Dim the button
+        if let btn = cameraNode.childNode(withName: "timeRewindBtn") as? SKShapeNode {
+            btn.fillColor = SKColor(red: 0.08, green: 0.1, blue: 0.2, alpha: 0.5)
+            if let lbl = btn.childNode(withName: "timeRewindLabel") as? SKLabelNode {
+                lbl.text = "⏪ USED"
+                lbl.fontColor = SKColor(white: 0.4, alpha: 1)
+            }
+        }
+        
+        gridRenderer.update(from: gridModel, state: gameState)
+        hudRenderer.update(state: gameState)
+    }
+    
+    private func updateTemporalButtons() {
+        if let btn = cameraNode.childNode(withName: "timeDilationBtn") as? SKShapeNode,
+           let lbl = btn.childNode(withName: "timeDilationLabel") as? SKLabelNode {
+            if gameState.timeDilationRemaining > 0 {
+                lbl.text = "⏳ \(Int(gameState.timeDilationRemaining))s"
+            } else if gameState.timeDilationUsed {
+                lbl.text = "⏳ USED"
+                lbl.fontColor = SKColor(white: 0.4, alpha: 1)
+            }
+        }
+    }
+    
     // MARK: - Camera
     
     @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
@@ -272,15 +471,30 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         guard gameState.phase != .collapse && gameState.phase != .summary else { return }
         
         if lastTickTime == 0 { lastTickTime = currentTime }
-        let dt = min(currentTime - lastTickTime, 0.1)
+        let rawDt = min(currentTime - lastTickTime, 0.1)
         lastTickTime = currentTime
+        
+        // Time Dilation: apply time scale
+        let dt = rawDt * gameState.timeScale
+        
+        // Update time dilation countdown
+        if gameState.timeDilationRemaining > 0 {
+            gameState.timeDilationRemaining -= rawDt // Uses real time, not scaled
+            if gameState.timeDilationRemaining <= 0 {
+                gameState.timeDilationRemaining = 0
+                gameState.timeScale = 1.0
+            }
+        }
         
         gameState.elapsedTime += dt
         
-        if gameState.elapsedTime >= GameConstants.loopDuration {
+        let effectiveLoopDuration = techEffects.loopDuration
+        let effectiveEscalationStart = techEffects.escalationStart
+        
+        if gameState.elapsedTime >= effectiveLoopDuration {
             triggerCollapse()
             return
-        } else if gameState.elapsedTime >= GameConstants.escalationStart && gameState.phase == .expansion {
+        } else if gameState.elapsedTime >= effectiveEscalationStart && gameState.phase == .expansion {
             gameState.phase = .escalation
             showEscalationWarning()
         }
@@ -298,11 +512,21 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 resourceSystem.tick(grid: gridModel, state: gameState, techEffects: techEffects)
                 // Escalation effects on each sim tick
                 escalationSystem.tick(grid: gridModel, state: gameState, rng: &gameState.rng)
+                // Paradox Shield: enforce minimum stability
+                resourceSystem.enforceParadoxShield(state: gameState, techEffects: techEffects)
             }
         }
         
+        // Take snapshots for Time Rewind
+        takeSnapshotIfNeeded()
+        
+        // Update temporal ability buttons
+        updateTemporalButtons()
+        
         // Update Medical Bay status for event filtering
         eventSystem.hasMedicalBay = gridModel.allBuildings().contains { $0.tile.buildingType == .medicalBay && $0.tile.isActive }
+        eventSystem.hasEventScanner = techEffects.meta.isUnlocked("RES-02")
+        eventOverlay.canDismissEvents = techEffects.canDismissEvents
         
         if let event = eventSystem.update(dt: dt, state: gameState, rng: &gameState.rng) {
             run(SoundManager.shared.event)
@@ -348,6 +572,16 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         }
         
         let uiLocation = touch.location(in: cameraNode)
+        
+        // Temporal ability buttons
+        if let dilBtn = cameraNode.childNode(withName: "timeDilationBtn"), dilBtn.contains(uiLocation) {
+            activateTimeDilation()
+            return
+        }
+        if let rewBtn = cameraNode.childNode(withName: "timeRewindBtn"), rewBtn.contains(uiLocation) {
+            activateTimeRewind()
+            return
+        }
         
         // Event overlay takes priority
         if eventOverlay.handleTap(at: uiLocation) {
@@ -430,7 +664,14 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 if gameState.availableColonists > 0 {
                     gridModel.assignWorker(at: col, row: row, state: gameState)
                 }
-                showFloatingText("-\(Int(buildingType.metalCost)) ⛏", at: col, row: row, color: .orange)
+                // Echo Memory: first building is free
+                if techEffects.firstBuildingFree && !gameState.firstBuildingPlacedThisLoop {
+                    gameState.firstBuildingPlacedThisLoop = true
+                    gameState.metal += buildingType.metalCost // Refund
+                    showFloatingText("FREE (Echo) ⛏", at: col, row: row, color: SKColor(red: 0.7, green: 0.4, blue: 1, alpha: 1))
+                } else {
+                    showFloatingText("-\(Int(buildingType.metalCost)) ⛏", at: col, row: row, color: .orange)
+                }
                 gridRenderer.animatePlacement(col: col, row: row)
             } else {
                 gridRenderer.highlightTile(col: col, row: row, color: .red)
@@ -539,6 +780,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             gameState.biomass += echo.biomass
             gameState.research += echo.research
         }
+        
+        // Chrono Mastery: extended loop duration
+        gameState.effectiveLoopDuration = techEffects.loopDuration
     }
     
     // MARK: - Escalation Visuals
@@ -725,7 +969,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         let knowledgeFromResearch = Int(gameState.research * 0.3)
         let knowledgeFromBuildings = buildingCount * 5
         let efficiencyBonus = activeCount * 3  // Reward for keeping buildings staffed
-        let survivalBonus = gameState.elapsedTime >= GameConstants.loopDuration ? 50 : 0  // Full loop bonus
+        let survivalBonus = gameState.elapsedTime >= gameState.effectiveLoopDuration ? 50 : 0  // Full loop bonus
         let stabilityBonus = Int(gameState.stability * 0.2)  // Reward for ending with stability
         let timeBonus = Int(gameState.elapsedTime / 60) * 10
         let total = knowledgeFromResearch + knowledgeFromBuildings + efficiencyBonus + survivalBonus + stabilityBonus + timeBonus
@@ -986,5 +1230,16 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             SKAction.fadeOut(withDuration: 0.3),
             SKAction.removeFromParent()
         ]))
+    }
+    
+    func eventOverlayDidDismiss() {
+        run(SoundManager.shared.tap)
+        // Emergency Protocols: dismiss costs 5 stability
+        gameState.stability = max(0, gameState.stability - (techEffects.eventDismissCost))
+        eventSystem.currentEvent = nil
+        eventSystem.isShowingEvent = false
+        eventOverlay.dismiss()
+        
+        showFloatingText("-5 Stability", at: GameConstants.gridColumns / 2, row: GameConstants.gridRows / 2, color: .orange)
     }
 }

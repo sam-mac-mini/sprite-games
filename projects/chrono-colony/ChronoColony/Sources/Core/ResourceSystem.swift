@@ -108,4 +108,13 @@ final class ResourceSystem {
         state.stability = min(GameConstants.maxStability, max(0, state.stability + stabilityDelta))
         state.stabilityDelta = stabilityDelta
     }
+    
+    /// Enforce Paradox Shield minimum (call after all stability changes including escalation)
+    func enforceParadoxShield(state: GameState, techEffects: TechEffects?) {
+        guard let effects = techEffects else { return }
+        let minStab = effects.minimumStability(elapsedTime: state.elapsedTime)
+        if state.stability < minStab {
+            state.stability = minStab
+        }
+    }
 }
