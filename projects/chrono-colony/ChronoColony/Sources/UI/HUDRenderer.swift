@@ -21,10 +21,10 @@ final class HUDRenderer {
         
         let isCompact = sceneSize.width < 375
         let topY = sceneSize.height / 2 - safeTop
-        let fontSize: CGFloat = isCompact ? 10 : 12
+        let fontSize: CGFloat = isCompact ? 11 : 13
         
         // HUD background
-        let panelHeight: CGFloat = isCompact ? 70 : 90
+        let panelHeight: CGFloat = isCompact ? 76 : 96
         let panelWidth = sceneSize.width - 12
         let hudBg = SKShapeNode(rectOf: CGSize(width: panelWidth, height: panelHeight), cornerRadius: 10)
         hudBg.fillColor = SKColor(red: 0.05, green: 0.05, blue: 0.09, alpha: 0.95)
@@ -33,24 +33,32 @@ final class HUDRenderer {
         hudBg.position = CGPoint(x: 0, y: topY - panelHeight / 2)
         hudNode.addChild(hudBg)
         
-        // Timer
+        // Timer block
+        let timerTitle = SKLabelNode(fontNamed: "Menlo")
+        timerTitle.text = "TIME"
+        timerTitle.fontSize = isCompact ? 8 : 9
+        timerTitle.fontColor = SKColor(white: 0.55, alpha: 1)
+        timerTitle.position = CGPoint(x: -panelWidth / 4, y: topY - 2)
+        timerTitle.horizontalAlignmentMode = .center
+        hudNode.addChild(timerTitle)
+        
         timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
         timerLabel.fontSize = isCompact ? 18 : 22
         timerLabel.fontColor = .white
-        timerLabel.position = CGPoint(x: -panelWidth / 4, y: topY - 12)
+        timerLabel.position = CGPoint(x: -panelWidth / 4, y: topY - 16)
         timerLabel.horizontalAlignmentMode = .center
         hudNode.addChild(timerLabel)
         
-        // Phase
+        // Phase block
         phaseLabel = SKLabelNode(fontNamed: "Menlo")
-        phaseLabel.fontSize = isCompact ? 8 : 10
-        phaseLabel.fontColor = SKColor(white: 0.5, alpha: 1)
+        phaseLabel.fontSize = isCompact ? 9 : 11
+        phaseLabel.fontColor = SKColor(white: 0.65, alpha: 1)
         phaseLabel.position = CGPoint(x: panelWidth / 4, y: topY - 8)
         phaseLabel.horizontalAlignmentMode = .center
         hudNode.addChild(phaseLabel)
         
-        // Colonists (next to phase)
-        colonistLabel = Self.makeLabel(x: panelWidth / 4 - 20, y: topY - 22, fontSize: fontSize)
+        // Colonists
+        colonistLabel = Self.makeLabel(x: panelWidth / 4 - 20, y: topY - 24, fontSize: fontSize)
         colonistLabel.horizontalAlignmentMode = .center
         hudNode.addChild(colonistLabel)
         
@@ -71,7 +79,7 @@ final class HUDRenderer {
         
         // Stability bar
         let barWidth = panelWidth * 0.6
-        let barHeight: CGFloat = 4
+        let barHeight: CGFloat = 5
         let barY = resY - (isCompact ? 14 : 16)
         
         let stabilityBg = SKShapeNode(rectOf: CGSize(width: barWidth, height: barHeight), cornerRadius: 2)
@@ -87,9 +95,9 @@ final class HUDRenderer {
         hudNode.addChild(stabilityFill)
         
         stabilityLabel = SKLabelNode(fontNamed: "Menlo")
-        stabilityLabel.fontSize = isCompact ? 8 : 9
-        stabilityLabel.fontColor = SKColor(white: 0.5, alpha: 1)
-        stabilityLabel.position = CGPoint(x: -panelWidth / 6 + barWidth / 2 + 6, y: barY - 3)
+        stabilityLabel.fontSize = isCompact ? 9 : 10
+        stabilityLabel.fontColor = SKColor(white: 0.65, alpha: 1)
+        stabilityLabel.position = CGPoint(x: -panelWidth / 6 + barWidth / 2 + 6, y: barY - 2)
         stabilityLabel.horizontalAlignmentMode = .left
         hudNode.addChild(stabilityLabel)
     }
@@ -105,18 +113,18 @@ final class HUDRenderer {
         }
         
         switch state.phase {
-        case .landing: phaseLabel.text = "LANDING"; phaseLabel.fontColor = SKColor(white: 0.5, alpha: 1)
-        case .expansion: phaseLabel.text = "EXPANSION"; phaseLabel.fontColor = SKColor(white: 0.5, alpha: 1)
-        case .escalation: phaseLabel.text = "⚠ ESCALATION"; phaseLabel.fontColor = .orange
-        case .collapse: phaseLabel.text = "COLLAPSE"; phaseLabel.fontColor = .red
+        case .landing: phaseLabel.text = "PHASE: LANDING"; phaseLabel.fontColor = SKColor(white: 0.65, alpha: 1)
+        case .expansion: phaseLabel.text = "PHASE: EXPANSION"; phaseLabel.fontColor = SKColor(white: 0.65, alpha: 1)
+        case .escalation: phaseLabel.text = "PHASE: ESCALATION"; phaseLabel.fontColor = .orange
+        case .collapse: phaseLabel.text = "PHASE: COLLAPSE"; phaseLabel.fontColor = .red
         case .summary: phaseLabel.text = ""
         }
         
-        metalLabel.text = "⛏\(Int(state.metal))"
-        energyLabel.text = "⚡\(Int(state.energy))"
-        biomassLabel.text = "🌱\(Int(state.biomass))"
-        researchLabel.text = "🔬\(Int(state.research))"
-        colonistLabel.text = "👤\(state.availableColonists)/\(state.totalColonists)"
+        metalLabel.text = "METAL \(Int(state.metal))"
+        energyLabel.text = "ENERGY \(Int(state.energy))"
+        biomassLabel.text = "FOOD \(Int(state.biomass))"
+        researchLabel.text = "SCI \(Int(state.research))"
+        colonistLabel.text = "POP \(state.availableColonists)/\(state.totalColonists)"
         
         metalLabel.fontColor = state.metal < 30 ? .red : .white
         energyLabel.fontColor = state.energy < 10 ? .red : .white
@@ -133,7 +141,7 @@ final class HUDRenderer {
             stabilityFill.fillColor = SKColor(red: 0.2, green: 0.8, blue: 0.3, alpha: 1)
         }
         
-        stabilityLabel.text = "\(Int(state.stability))%"
+        stabilityLabel.text = "STAB \(Int(state.stability))%"
     }
     
     private static func makeLabel(x: CGFloat, y: CGFloat, fontSize: CGFloat) -> SKLabelNode {

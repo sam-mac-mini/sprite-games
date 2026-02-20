@@ -386,23 +386,29 @@ final class TechTreeScene: SKScene {
         status.verticalAlignmentMode = .center
         card.addChild(status)
         
-        let name = SKLabelNode(fontNamed: "Menlo-Bold")
-        name.text = node.name
-        name.fontSize = 9
-        name.horizontalAlignmentMode = .left
-        name.verticalAlignmentMode = .center
-        name.position = CGPoint(x: -nodeWidth / 2 + 24, y: nodeHeight / 2 - 16)
-        name.fontColor = state == .locked ? SKColor(white: 0.35, alpha: 1) : .white
-        card.addChild(name)
+        // Name (wrapped to avoid overflow)
+        let nameLines = wordWrap(node.name, maxChars: max(10, Int((nodeWidth - 34) / 5.3))).prefix(2)
+        for (i, line) in nameLines.enumerated() {
+            let name = SKLabelNode(fontNamed: "Menlo-Bold")
+            name.text = line
+            name.fontSize = 8.5
+            name.horizontalAlignmentMode = .left
+            name.verticalAlignmentMode = .center
+            name.position = CGPoint(x: -nodeWidth / 2 + 24, y: nodeHeight / 2 - 15 - CGFloat(i) * 9)
+            name.fontColor = state == .locked ? SKColor(white: 0.35, alpha: 1) : .white
+            card.addChild(name)
+        }
         
-        let descLines = wordWrap(node.description, maxChars: Int((nodeWidth - 14) / 5.6))
+        // Description (wrapped + clamped)
+        let descTop = nodeHeight / 2 - 33 - CGFloat(max(0, nameLines.count - 1)) * 9
+        let descLines = wordWrap(node.description, maxChars: max(12, Int((nodeWidth - 14) / 5.6)))
         for (i, line) in descLines.prefix(2).enumerated() {
             let desc = SKLabelNode(fontNamed: "Menlo")
             desc.text = line
-            desc.fontSize = 7.5
+            desc.fontSize = 7.3
             desc.horizontalAlignmentMode = .left
             desc.verticalAlignmentMode = .center
-            desc.position = CGPoint(x: -nodeWidth / 2 + 8, y: 9 - CGFloat(i) * 10)
+            desc.position = CGPoint(x: -nodeWidth / 2 + 8, y: descTop - CGFloat(i) * 10)
             desc.fontColor = state == .locked ? SKColor(white: 0.26, alpha: 1) : SKColor(white: 0.62, alpha: 1)
             card.addChild(desc)
         }
@@ -669,14 +675,30 @@ final class TechTreeScene: SKScene {
     }
     
     private func wordWrap(_ text: String, maxChars: Int) -> [String] {
-        let words = text.split(separator: " ")
+        guard maxChars > 3 else { return [String(text.prefix(3))] }
+        var words: [String] = []
+        
+        // Split overly long words into chunks so they can't overflow labels.
+        for raw in text.split(separator: " ").map(String.init) {
+            if raw.count <= maxChars {
+                words.append(raw)
+            } else {
+                var start = raw.startIndex
+                while start < raw.endIndex {
+                    let end = raw.index(start, offsetBy: maxChars, limitedBy: raw.endIndex) ?? raw.endIndex
+                    words.append(String(raw[start..<end]))
+                    start = end
+                }
+            }
+        }
+        
         var lines: [String] = []
         var current = ""
         for word in words {
-            let test = current.isEmpty ? String(word) : current + " " + word
+            let test = current.isEmpty ? word : current + " " + word
             if test.count > maxChars && !current.isEmpty {
                 lines.append(current)
-                current = String(word)
+                current = word
             } else {
                 current = test
             }
