@@ -1,40 +1,56 @@
 import SpriteKit
+import UIKit
 
 /// Displays the tech tree between loops — tabbed, branch-based tree layout
-class TechTreeScene: SKScene {
+final class TechTreeScene: SKScene {
     
     private var meta: MetaState!
     private var kpLabel: SKLabelNode!
-    
     private var contentCropNode: SKCropNode!
     private var contentNode: SKNode!
     private var tabButtons: [SKShapeNode] = []
     private var nodeViews: [String: SKShapeNode] = [:]
+    private var nodePositions: [String: CGPoint] = [:]
     private var selectedBranch: TechBranch = .infrastructure
+    
+    // Safe area/layout
+    private var safeTop: CGFloat = 0
+    private var tabsY: CGFloat = 0
+    private var contentTopY: CGFloat = 0
+    private let contentBottomY: CGFloat = 86
+    private var contentHeight: CGFloat { contentTopY - contentBottomY }
+    private var contentRect: CGRect {
+        CGRect(x: 0, y: contentBottomY, width: size.width, height: contentHeight)
+    }
     
     // Scroll
     private var scrollOffset: CGFloat = 0
     private var maxScrollOffset: CGFloat = 0
     private var lastTouchY: CGFloat = 0
     private var isDragging = false
+    private var panGesture: UIPanGestureRecognizer?
     
-    // Layout
-    private let nodeWidth: CGFloat = 142
-    private let nodeHeight: CGFloat = 96
-    private var contentTopY: CGFloat { size.height - 118 }
-    private var contentBottomY: CGFloat { 82 }
-    private var contentHeight: CGFloat { contentTopY - contentBottomY }
-    private var contentRect: CGRect {
-        CGRect(x: 0, y: contentBottomY, width: size.width, height: contentHeight)
-    }
+    // Node sizing
+    private let nodeWidth: CGFloat = 136
+    private let nodeHeight: CGFloat = 88
+    private let tierSpacing: CGFloat = 175
     
     // Callback
     var onStartLoop: (() -> Void)?
     
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(red: 0.03, green: 0.03, blue: 0.06, alpha: 1)
+        safeTop = view.safeAreaInsets.top
         meta = MetaState.load()
         buildUI()
+        installPanGestureIfNeeded(view: view)
+    }
+    
+    override func willMove(from view: SKView) {
+        if let pan = panGesture {
+            view.removeGestureRecognizer(pan)
+            panGesture = nil
+        }
     }
     
     // MARK: - UI
@@ -42,19 +58,21 @@ class TechTreeScene: SKScene {
     private func buildUI() {
         removeAllChildren()
         
+        let topBase = size.height - safeTop - 14
+        
         let title = SKLabelNode(fontNamed: "Menlo-Bold")
         title.text = "TECH TREE"
-        title.fontSize = 18
+        title.fontSize = 17
         title.fontColor = SKColor(red: 0.4, green: 0.75, blue: 1, alpha: 1)
-        title.position = CGPoint(x: size.width / 2, y: size.height - 34)
-        title.zPosition = 20
+        title.position = CGPoint(x: size.width / 2, y: topBase)
+        title.zPosition = 30
         addChild(title)
         
         kpLabel = SKLabelNode(fontNamed: "Menlo-Bold")
         kpLabel.fontSize = 13
         kpLabel.fontColor = SKColor(red: 0.4, green: 0.9, blue: 1, alpha: 1)
-        kpLabel.position = CGPoint(x: size.width / 2, y: size.height - 53)
-        kpLabel.zPosition = 20
+        kpLabel.position = CGPoint(x: size.width / 2, y: topBase - 18)
+        kpLabel.zPosition = 30
         addChild(kpLabel)
         updateKPLabel()
         
@@ -62,26 +80,27 @@ class TechTreeScene: SKScene {
         stats.text = "Loops: \(meta.totalLoops) • Best: \(meta.bestLoopScore) KP"
         stats.fontSize = 9
         stats.fontColor = SKColor(white: 0.45, alpha: 1)
-        stats.position = CGPoint(x: size.width / 2, y: size.height - 67)
-        stats.zPosition = 20
+        stats.position = CGPoint(x: size.width / 2, y: topBase - 32)
+        stats.zPosition = 30
         addChild(stats)
         
-        buildTabBar(y: size.height - 93)
+        tabsY = topBase - 58
+        contentTopY = tabsY - 22
         
-        // Content backdrop
-        let backdrop = SKShapeNode(rectOf: CGSize(width: size.width - 8, height: contentHeight + 6), cornerRadius: 10)
-        backdrop.fillColor = SKColor(red: 0.04, green: 0.04, blue: 0.08, alpha: 0.85)
+        buildTabBar()
+        
+        let backdrop = SKShapeNode(rectOf: CGSize(width: size.width - 10, height: contentHeight + 8), cornerRadius: 10)
+        backdrop.fillColor = SKColor(red: 0.04, green: 0.04, blue: 0.08, alpha: 0.9)
         backdrop.strokeColor = SKColor(white: 0.12, alpha: 0.5)
         backdrop.lineWidth = 1
         backdrop.position = CGPoint(x: size.width / 2, y: contentBottomY + contentHeight / 2)
         backdrop.zPosition = 2
         addChild(backdrop)
         
-        // Crop/scroll area
         contentCropNode = SKCropNode()
         contentCropNode.zPosition = 5
         
-        let mask = SKSpriteNode(color: .white, size: CGSize(width: size.width - 10, height: contentHeight))
+        let mask = SKSpriteNode(color: .white, size: CGSize(width: size.width - 12, height: contentHeight))
         mask.position = CGPoint(x: size.width / 2, y: contentBottomY + contentHeight / 2)
         contentCropNode.maskNode = mask
         
@@ -89,27 +108,23 @@ class TechTreeScene: SKScene {
         contentCropNode.addChild(contentNode)
         addChild(contentCropNode)
         
-        // Scroll controls (for simulator/mouse friendliness)
-        let up = makeScrollButton(name: "scrollUp", text: "▲", x: size.width - 18, y: contentTopY - 12)
-        let down = makeScrollButton(name: "scrollDown", text: "▼", x: size.width - 18, y: contentBottomY + 12)
-        addChild(up)
-        addChild(down)
+        addChild(makeScrollButton(name: "scrollUp", text: "▲", x: size.width - 18, y: contentTopY - 14))
+        addChild(makeScrollButton(name: "scrollDown", text: "▼", x: size.width - 18, y: contentBottomY + 12))
         
         let dragHint = SKLabelNode(fontNamed: "Menlo")
-        dragHint.text = "Drag to scroll"
+        dragHint.text = "Drag / ▲▼ to scroll"
         dragHint.fontSize = 8
         dragHint.fontColor = SKColor(white: 0.35, alpha: 1)
-        dragHint.position = CGPoint(x: size.width - 48, y: contentBottomY - 8)
-        dragHint.zPosition = 20
+        dragHint.position = CGPoint(x: size.width - 60, y: contentBottomY - 8)
+        dragHint.zPosition = 30
         addChild(dragHint)
         
-        // Start loop button
-        let startBtn = SKShapeNode(rectOf: CGSize(width: 200, height: 40), cornerRadius: 12)
+        let startBtn = SKShapeNode(rectOf: CGSize(width: 204, height: 40), cornerRadius: 12)
         startBtn.fillColor = SKColor(red: 0.15, green: 0.4, blue: 0.2, alpha: 1)
         startBtn.strokeColor = SKColor(red: 0.25, green: 0.6, blue: 0.3, alpha: 1)
         startBtn.lineWidth = 1.5
         startBtn.position = CGPoint(x: size.width / 2, y: 35)
-        startBtn.zPosition = 20
+        startBtn.zPosition = 30
         startBtn.name = "startLoopBtn"
         addChild(startBtn)
         
@@ -123,8 +138,10 @@ class TechTreeScene: SKScene {
         buildBranchTree(for: selectedBranch)
     }
     
-    private func buildTabBar(y: CGFloat) {
+    private func buildTabBar() {
+        tabButtons.forEach { $0.removeFromParent() }
         tabButtons = []
+        
         let branches = TechBranch.allCases
         let tabWidth = (size.width - 16) / CGFloat(branches.count)
         let startX: CGFloat = 8 + tabWidth / 2
@@ -137,8 +154,8 @@ class TechTreeScene: SKScene {
                 : SKColor(red: 0.06, green: 0.06, blue: 0.1, alpha: 0.85)
             tab.strokeColor = isSelected ? branchColor(branch) : SKColor(white: 0.15, alpha: 0.5)
             tab.lineWidth = isSelected ? 1.5 : 0.75
-            tab.position = CGPoint(x: startX + CGFloat(i) * tabWidth, y: y)
-            tab.zPosition = 20
+            tab.position = CGPoint(x: startX + CGFloat(i) * tabWidth, y: tabsY)
+            tab.zPosition = 30
             tab.name = "tab_\(i)"
             addChild(tab)
             tabButtons.append(tab)
@@ -152,70 +169,130 @@ class TechTreeScene: SKScene {
         }
     }
     
-    // MARK: - Tree Content
+    // MARK: - Tree
     
     private func buildBranchTree(for branch: TechBranch) {
         contentNode.removeAllChildren()
         nodeViews.removeAll()
+        nodePositions.removeAll()
         scrollOffset = 0
         
-        let nodes = TechTree.allNodes.filter { $0.branch == branch }
-        let nodesByTier = Dictionary(grouping: nodes, by: { $0.tier })
-        let sortedTiers = nodesByTier.keys.sorted()
+        let nodes = orderedNodes(for: branch)
+        let byTier = Dictionary(grouping: nodes, by: { $0.tier })
+        let tiers = byTier.keys.sorted()
         
-        let topY = contentTopY - 22
-        let tierSpacing: CGFloat = 170
+        let topY = contentTopY - 28
         
-        for (tierIndex, tier) in sortedTiers.enumerated() {
-            guard let tierNodes = nodesByTier[tier] else { continue }
-            let tierY = topY - CGFloat(tierIndex) * tierSpacing
+        // First pass: assign positions tier by tier
+        for (tierIndex, tier) in tiers.enumerated() {
+            guard let tierNodes = byTier[tier] else { continue }
+            let y = topY - CGFloat(tierIndex) * tierSpacing
             
-            // Tier header
             let tierLabel = SKLabelNode(fontNamed: "Menlo-Bold")
             tierLabel.text = "TIER \(tier)"
             tierLabel.fontSize = 10
-            tierLabel.fontColor = SKColor(white: 0.35, alpha: 1)
-            tierLabel.position = CGPoint(x: size.width / 2, y: tierY + 62)
+            tierLabel.fontColor = SKColor(white: 0.34, alpha: 1)
+            tierLabel.position = CGPoint(x: size.width / 2, y: y + 58)
             tierLabel.zPosition = 0
             contentNode.addChild(tierLabel)
             
-            // Node positions for branching layout
-            let orderedNodes = tierNodes.sorted { $0.id < $1.id }
-            let xs = horizontalPositions(count: orderedNodes.count)
+            let xs: [CGFloat]
+            if tier == tiers.first {
+                xs = evenSlots(count: tierNodes.count)
+            } else {
+                let targets = tierNodes.map { node in
+                    let parentXs = node.prerequisites.compactMap { nodePositions[$0]?.x }
+                    if parentXs.isEmpty {
+                        return size.width / 2
+                    }
+                    return parentXs.reduce(0, +) / CGFloat(parentXs.count)
+                }
+                xs = assignTargetsToSlots(targets: targets, slotCount: tierNodes.count)
+            }
             
-            for (i, node) in orderedNodes.enumerated() {
-                let pos = CGPoint(x: xs[i], y: tierY)
-                let card = createNodeCard(node: node, at: pos)
-                contentNode.addChild(card)
+            for (idx, node) in tierNodes.enumerated() {
+                let p = CGPoint(x: xs[idx], y: y)
+                nodePositions[node.id] = p
+                let card = createNodeCard(node: node, at: p)
                 nodeViews[node.id] = card
+                contentNode.addChild(card)
             }
         }
         
-        // Draw branch connections (behind cards)
+        // Connections (elbow paths, top-to-bottom)
         for node in nodes {
-            guard let toCard = nodeViews[node.id] else { continue }
-            for prereqID in node.prerequisites {
-                guard let fromCard = nodeViews[prereqID] else { continue }
-                let line = SKShapeNode()
+            guard let to = nodePositions[node.id] else { continue }
+            for prereq in node.prerequisites {
+                guard let from = nodePositions[prereq] else { continue }
                 let path = CGMutablePath()
-                path.move(to: CGPoint(x: fromCard.position.x, y: fromCard.position.y - nodeHeight / 2 + 2))
-                path.addLine(to: CGPoint(x: toCard.position.x, y: toCard.position.y + nodeHeight / 2 - 2))
-                line.path = path
-                let active = meta.isUnlocked(prereqID)
+                let start = CGPoint(x: from.x, y: from.y - nodeHeight / 2 + 2)
+                let end = CGPoint(x: to.x, y: to.y + nodeHeight / 2 - 2)
+                let midY = (start.y + end.y) / 2
+                path.move(to: start)
+                path.addLine(to: CGPoint(x: start.x, y: midY))
+                path.addLine(to: CGPoint(x: end.x, y: midY))
+                path.addLine(to: end)
+                
+                let line = SKShapeNode(path: path)
+                let active = meta.isUnlocked(prereq)
                 line.strokeColor = active
                     ? SKColor(red: 0.3, green: 0.7, blue: 0.35, alpha: 0.6)
-                    : SKColor(white: 0.18, alpha: 0.4)
+                    : SKColor(white: 0.18, alpha: 0.45)
                 line.lineWidth = active ? 2 : 1
-                line.zPosition = -2
+                line.zPosition = -1
                 contentNode.addChild(line)
             }
         }
         
         // Scroll bounds
-        let minY = nodeViews.values.map { $0.position.y }.min() ?? topY
-        let contentTotal = (topY + 70) - (minY - nodeHeight / 2 - 20)
-        maxScrollOffset = max(0, contentTotal - contentHeight)
+        let lowestY = nodePositions.values.map { $0.y - nodeHeight / 2 }.min() ?? (topY - 40)
+        let highestY = nodePositions.values.map { $0.y + nodeHeight / 2 }.max() ?? topY
+        let contentSpan = (highestY + 20) - (lowestY - 20)
+        maxScrollOffset = max(0, contentSpan - contentHeight)
         applyScroll()
+    }
+    
+    private func orderedNodes(for branch: TechBranch) -> [TechNode] {
+        let base: [TechNode]
+        switch branch {
+        case .infrastructure: base = TechTree.infrastructure
+        case .colony: base = TechTree.colony
+        case .research: base = TechTree.research
+        case .temporal: base = TechTree.temporal
+        }
+        return base.sorted {
+            if $0.tier == $1.tier { return $0.id < $1.id }
+            return $0.tier < $1.tier
+        }
+    }
+    
+    private func evenSlots(count: Int) -> [CGFloat] {
+        guard count > 1 else { return [size.width / 2] }
+        let minX: CGFloat = 18 + nodeWidth / 2
+        let maxX: CGFloat = size.width - 28 - nodeWidth / 2
+        let step = (maxX - minX) / CGFloat(count - 1)
+        return (0..<count).map { minX + CGFloat($0) * step }
+    }
+    
+    private func assignTargetsToSlots(targets: [CGFloat], slotCount: Int) -> [CGFloat] {
+        let slots = evenSlots(count: slotCount)
+        var used = Array(repeating: false, count: slotCount)
+        var result = Array(repeating: size.width / 2, count: slotCount)
+        
+        for (i, target) in targets.enumerated() {
+            var bestIdx = 0
+            var bestDist = CGFloat.greatestFiniteMagnitude
+            for s in 0..<slots.count where !used[s] {
+                let d = abs(slots[s] - target)
+                if d < bestDist {
+                    bestDist = d
+                    bestIdx = s
+                }
+            }
+            used[bestIdx] = true
+            result[i] = slots[bestIdx]
+        }
+        return result
     }
     
     private func createNodeCard(node: TechNode, at position: CGPoint) -> SKShapeNode {
@@ -223,7 +300,7 @@ class TechTreeScene: SKScene {
         let card = SKShapeNode(rectOf: CGSize(width: nodeWidth, height: nodeHeight), cornerRadius: 10)
         card.position = position
         card.name = "node_\(node.id)"
-        card.zPosition = 1
+        card.zPosition = 2
         
         switch state {
         case .unlocked:
@@ -243,16 +320,14 @@ class TechTreeScene: SKScene {
         card.lineWidth = 1.5
         
         let status = SKLabelNode(fontNamed: "Menlo-Bold")
-        status.text = {
-            switch state {
-            case .unlocked: return "✅"
-            case .affordable: return "💡"
-            case .tooExpensive: return "🔒"
-            case .locked: return "⛔"
-            }
-        }()
+        switch state {
+        case .unlocked: status.text = "✅"
+        case .affordable: status.text = "💡"
+        case .tooExpensive: status.text = "🔒"
+        case .locked: status.text = "⛔"
+        }
         status.fontSize = 14
-        status.position = CGPoint(x: -nodeWidth / 2 + 14, y: nodeHeight / 2 - 18)
+        status.position = CGPoint(x: -nodeWidth / 2 + 14, y: nodeHeight / 2 - 17)
         status.verticalAlignmentMode = .center
         card.addChild(status)
         
@@ -261,7 +336,7 @@ class TechTreeScene: SKScene {
         name.fontSize = 10
         name.horizontalAlignmentMode = .left
         name.verticalAlignmentMode = .center
-        name.position = CGPoint(x: -nodeWidth / 2 + 28, y: nodeHeight / 2 - 18)
+        name.position = CGPoint(x: -nodeWidth / 2 + 28, y: nodeHeight / 2 - 17)
         name.fontColor = state == .locked ? SKColor(white: 0.35, alpha: 1) : .white
         card.addChild(name)
         
@@ -301,16 +376,7 @@ class TechTreeScene: SKScene {
         return card
     }
     
-    private func horizontalPositions(count: Int) -> [CGFloat] {
-        if count <= 1 { return [size.width / 2] }
-        let usableWidth = size.width - 40
-        let step = min(160, usableWidth / CGFloat(count - 1))
-        let totalWidth = step * CGFloat(count - 1)
-        let start = size.width / 2 - totalWidth / 2
-        return (0..<count).map { start + CGFloat($0) * step }
-    }
-    
-    // MARK: - Touch
+    // MARK: - Input
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
@@ -319,7 +385,7 @@ class TechTreeScene: SKScene {
         isDragging = false
         
         // Start loop
-        if abs(loc.x - size.width / 2) < 100 && abs(loc.y - 35) < 22 {
+        if abs(loc.x - size.width / 2) < 102 && abs(loc.y - 35) < 22 {
             run(SoundManager.shared.newloop)
             onStartLoop?()
             return
@@ -333,8 +399,7 @@ class TechTreeScene: SKScene {
                 let branch = TechBranch.allCases[i]
                 if branch != selectedBranch {
                     selectedBranch = branch
-                    tabButtons.forEach { $0.removeFromParent() }
-                    buildTabBar(y: size.height - 93)
+                    buildTabBar()
                     buildBranchTree(for: selectedBranch)
                     run(SoundManager.shared.tap)
                 }
@@ -343,11 +408,11 @@ class TechTreeScene: SKScene {
         }
         
         // Scroll buttons
-        if abs(loc.x - (size.width - 18)) < 14 && abs(loc.y - (contentTopY - 12)) < 12 {
+        if abs(loc.x - (size.width - 18)) < 15 && abs(loc.y - (contentTopY - 14)) < 12 {
             scrollBy(-110)
             return
         }
-        if abs(loc.x - (size.width - 18)) < 14 && abs(loc.y - (contentBottomY + 12)) < 12 {
+        if abs(loc.x - (size.width - 18)) < 15 && abs(loc.y - (contentBottomY + 12)) < 12 {
             scrollBy(110)
             return
         }
@@ -356,12 +421,12 @@ class TechTreeScene: SKScene {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let loc = touch.location(in: self)
+        guard contentRect.contains(loc) else { return }
+        
         let deltaY = loc.y - lastTouchY
         lastTouchY = loc.y
         
-        if !contentRect.contains(loc) { return }
         if abs(deltaY) > 2 { isDragging = true }
-        
         if isDragging && maxScrollOffset > 0 {
             scrollOffset = clamp(scrollOffset - deltaY, min: 0, max: maxScrollOffset)
             applyScroll()
@@ -374,16 +439,42 @@ class TechTreeScene: SKScene {
         
         let locSelf = touch.location(in: self)
         guard contentRect.contains(locSelf) else { return }
-        
         let loc = touch.location(in: contentNode)
-        for node in TechTree.allNodes where node.branch == selectedBranch {
+        
+        for node in orderedNodes(for: selectedBranch) {
             guard let view = nodeViews[node.id] else { continue }
-            let halfW = nodeWidth / 2
-            let halfH = nodeHeight / 2
-            if abs(loc.x - view.position.x) < halfW && abs(loc.y - view.position.y) < halfH {
+            if abs(loc.x - view.position.x) < nodeWidth / 2 && abs(loc.y - view.position.y) < nodeHeight / 2 {
                 handleNodeTap(node)
                 return
             }
+        }
+    }
+    
+    private func installPanGestureIfNeeded(view: SKView) {
+        guard panGesture == nil else { return }
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        pan.maximumNumberOfTouches = 1
+        view.addGestureRecognizer(pan)
+        panGesture = pan
+    }
+    
+    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard maxScrollOffset > 0 else { return }
+        guard let view = self.view else { return }
+        let pointInView = gesture.location(in: view)
+        let loc = convertPoint(fromView: pointInView)
+        guard contentRect.contains(loc) else { return }
+        
+        switch gesture.state {
+        case .began:
+            lastTouchY = loc.y
+        case .changed:
+            let deltaY = loc.y - lastTouchY
+            lastTouchY = loc.y
+            scrollOffset = clamp(scrollOffset - deltaY, min: 0, max: maxScrollOffset)
+            applyScroll()
+        default:
+            break
         }
     }
     
@@ -424,8 +515,9 @@ class TechTreeScene: SKScene {
         btn.strokeColor = SKColor(white: 0.2, alpha: 0.7)
         btn.lineWidth = 1
         btn.position = CGPoint(x: x, y: y)
-        btn.zPosition = 20
+        btn.zPosition = 30
         btn.name = name
+        
         let lbl = SKLabelNode(fontNamed: "Menlo-Bold")
         lbl.text = text
         lbl.fontSize = 11
