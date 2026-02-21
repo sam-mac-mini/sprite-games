@@ -102,11 +102,14 @@ final class TutorialSystem {
         guard step != .done else { return }
         
         let (text, position, hasArrow, arrowDirection) = config(for: step)
+        let compactSummaryHint = (step == .techTreeHint)
         
         // Background pill with hint text
-        let padding: CGFloat = 16
-        let bgWidth = min(CGFloat(text.count) * 7.2 + padding * 2, sceneSize.width - 20)
-        let bg = SKShapeNode(rectOf: CGSize(width: bgWidth, height: 32), cornerRadius: 10)
+        let padding: CGFloat = compactSummaryHint ? 12 : 16
+        let charWidth: CGFloat = compactSummaryHint ? 6.4 : 7.2
+        let bgHeight: CGFloat = compactSummaryHint ? 26 : 32
+        let bgWidth = min(CGFloat(text.count) * charWidth + padding * 2, sceneSize.width - 20)
+        let bg = SKShapeNode(rectOf: CGSize(width: bgWidth, height: bgHeight), cornerRadius: compactSummaryHint ? 9 : 10)
         bg.fillColor = SKColor(red: 0.08, green: 0.08, blue: 0.18, alpha: 0.95)
         bg.strokeColor = SKColor(red: 0.3, green: 0.5, blue: 0.9, alpha: 0.8)
         bg.lineWidth = 1.5
@@ -114,9 +117,9 @@ final class TutorialSystem {
         bg.zPosition = 500
         bg.name = "tutorialHint"
         
-        let label = SKLabelNode(fontNamed: "Menlo-Bold")
+        let label = SKLabelNode(fontNamed: compactSummaryHint ? "Menlo" : "Menlo-Bold")
         label.text = text
-        label.fontSize = 12
+        label.fontSize = compactSummaryHint ? 10 : 12
         label.fontColor = .white
         label.horizontalAlignmentMode = .center
         label.verticalAlignmentMode = .center
@@ -126,17 +129,18 @@ final class TutorialSystem {
         // Arrow indicator
         if hasArrow {
             let arrow = SKLabelNode(fontNamed: "Menlo-Bold")
-            arrow.fontSize = 20
+            arrow.fontSize = compactSummaryHint ? 16 : 20
             arrow.fontColor = SKColor(red: 0.3, green: 0.5, blue: 0.9, alpha: 1)
             arrow.zPosition = 501
+            let arrowOffset = compactSummaryHint ? 18.0 : 24.0
             
             switch arrowDirection {
             case .down:
                 arrow.text = "↓"
-                arrow.position = CGPoint(x: position.x, y: position.y - 24)
+                arrow.position = CGPoint(x: position.x, y: position.y - arrowOffset)
             case .up:
                 arrow.text = "↑"
-                arrow.position = CGPoint(x: position.x, y: position.y + 24)
+                arrow.position = CGPoint(x: position.x, y: position.y + arrowOffset)
             case .left:
                 arrow.text = "←"
                 arrow.position = CGPoint(x: position.x - bgWidth/2 - 12, y: position.y)
@@ -181,7 +185,8 @@ final class TutorialSystem {
         case .collapseExplained:
             return ("You earned Knowledge Points! 💡", CGPoint(x: midX, y: midArea + 40), false, .down)
         case .techTreeHint:
-            return ("Tap SPEND KNOWLEDGE to unlock tech", CGPoint(x: midX, y: midArea - 20), true, .up)
+            // Compact summary hint: sits above the CTA with clear separation from rows + button label.
+            return ("Tap SPEND KNOWLEDGE", CGPoint(x: midX, y: -94), true, .down)
         case .done:
             return ("", .zero, false, .down)
         }

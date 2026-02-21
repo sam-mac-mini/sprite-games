@@ -48,13 +48,18 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     // MARK: - Layout constants (set by GameViewController)
     var safeTop: CGFloat = 59
     var safeBottom: CGFloat = 34
+    private var layoutSafeTop: CGFloat = 59
+    private var layoutSafeBottom: CGFloat = 34
     
     // MARK: - Scene Setup
     
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(red: 0.04, green: 0.04, blue: 0.07, alpha: 1)
         
-        // safeTop/safeBottom set by GameViewController from actual device safe areas
+        // safeTop/safeBottom set by GameViewController from actual device safe areas.
+        // Status bar is hidden, so enforce floor insets to avoid HUD/menu clipping.
+        layoutSafeTop = max(safeTop, 20)
+        layoutSafeBottom = max(safeBottom, 8)
         
         // Camera
         cameraNode = SKCameraNode()
@@ -75,13 +80,40 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         resourceSystem = ResourceSystem()
         gridModel.generateMap(rng: &gameState.rng)
         
+        // Filter available buildings based on tech unlocks (also used for layout sizing)
+        let unlockedBuildings = BuildingType.allCases.filter { type in
+            guard let techID = type.requiredTechID else { return true }
+            return techEffects.meta.isUnlocked(techID)
+        }
+
         // Layout zones — scale to screen
         let hudHeight: CGFloat = size.height > 600 ? 100 : 80
-        let buildMenuHeight: CGFloat = size.height > 600 ? 80 : 70
+
+        // Reserve menu space based on current unlocked item count so status text doesn't overlap.
+        let menuItemCount = unlockedBuildings.count + 3 // +demolish +staff +toggle
+        let menuRows = menuItemCount > 9 ? 2 : 1
+        let menuItemsPerRow = Int(ceil(Double(menuItemCount) / Double(menuRows)))
+        let menuButtonSpacing: CGFloat = 6
+        let menuMaxWidth = size.width - 20
+        var estimatedMenuButtonSize: CGFloat = 46
+        let rowSpacingWidth = CGFloat(max(0, menuItemsPerRow - 1)) * menuButtonSpacing
+        let idealRowWidth = CGFloat(menuItemsPerRow) * estimatedMenuButtonSize + rowSpacingWidth
+        if idealRowWidth > menuMaxWidth {
+            estimatedMenuButtonSize = (menuMaxWidth - rowSpacingWidth) / CGFloat(menuItemsPerRow)
+        }
+        estimatedMenuButtonSize = max(34, estimatedMenuButtonSize)
+
+        let estimatedMenuPanelHeight: CGFloat
+        if menuRows == 1 {
+            estimatedMenuPanelHeight = max(estimatedMenuButtonSize + 24, 76)
+        } else {
+            estimatedMenuPanelHeight = max((estimatedMenuButtonSize + menuButtonSpacing) * 2 + 16, 76)
+        }
+        let buildMenuHeight = estimatedMenuPanelHeight + 20
+
         let gridPaddingV: CGFloat = 4
-        let gridAreaTop = size.height - safeTop - hudHeight - gridPaddingV
-        let gridAreaBottom = safeBottom + buildMenuHeight + gridPaddingV
-        let gridAreaHeight = gridAreaTop - gridAreaBottom
+        let gridAreaTop = size.height - layoutSafeTop - hudHeight - gridPaddingV
+        let gridAreaBottom = layoutSafeBottom + buildMenuHeight + gridPaddingV
         // Use nearly full width so tiles are as large as possible
         let gridAreaWidth = size.width - 8
         
@@ -110,16 +142,11 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         }
         
         // HUD (attached to camera)
-        hudRenderer = HUDRenderer(sceneSize: size, safeTop: safeTop)
+        hudRenderer = HUDRenderer(sceneSize: size, safeTop: layoutSafeTop)
         cameraNode.addChild(hudRenderer.hudNode)
         
         // Build menu (attached to camera)
-        // Filter available buildings based on tech unlocks
-        let unlockedBuildings = BuildingType.allCases.filter { type in
-            guard let techID = type.requiredTechID else { return true }
-            return techEffects.meta.isUnlocked(techID)
-        }
-        buildMenu = BuildMenuRenderer(sceneSize: size, unlockedBuildings: unlockedBuildings)
+        buildMenu = BuildMenuRenderer(sceneSize: size, safeBottom: layoutSafeBottom, unlockedBuildings: unlockedBuildings)
         buildMenu.delegate = self
         cameraNode.addChild(buildMenu.menuNode)
         
@@ -180,8 +207,8 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         // Production summary
         let prodTitle = SKLabelNode(fontNamed: "Menlo-Bold")
         prodTitle.text = "PRODUCTION"
-        prodTitle.fontSize = 10
-        prodTitle.fontColor = SKColor(white: 0.4, alpha: 1)
+        prodTitle.fontSize = 11
+        prodTitle.fontColor = SKColor(white: 0.58, alpha: 1)
         prodTitle.position = CGPoint(x: 0, y: panelH / 2 - 16)
         prodTitle.verticalAlignmentMode = .center
         panel.addChild(prodTitle)
@@ -194,8 +221,8 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         for (i, res) in resources.enumerated() {
             let label = SKLabelNode(fontNamed: "Menlo")
             label.text = res
-            label.fontSize = 11
-            label.fontColor = .white
+            label.fontSize = 12
+            label.fontColor = SKColor(white: 0.92, alpha: 1)
             label.position = CGPoint(x: startX + CGFloat(i) * colW, y: panelH / 2 - 34)
             label.horizontalAlignmentMode = .left
             label.verticalAlignmentMode = .center
@@ -206,8 +233,8 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         // Event/status line
         let statusLine = SKLabelNode(fontNamed: "Menlo")
         statusLine.text = "⏱ Build quickly — collapse is coming"
-        statusLine.fontSize = 10
-        statusLine.fontColor = SKColor(white: 0.45, alpha: 1)
+        statusLine.fontSize = 11
+        statusLine.fontColor = SKColor(white: 0.62, alpha: 1)
         statusLine.position = CGPoint(x: 0, y: -panelH / 2 + 14)
         statusLine.verticalAlignmentMode = .center
         statusLine.name = "statusLine"
@@ -235,7 +262,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 statusLine.text = preview
                 statusLine.fontColor = SKColor(red: 1, green: 0.8, blue: 0.3, alpha: 1)
             } else {
-                statusLine.fontColor = SKColor(white: 0.45, alpha: 1)
+                statusLine.fontColor = SKColor(white: 0.62, alpha: 1)
                 switch gameState.phase {
                 case .expansion:
                     let buildings = gridModel.allBuildings().count
@@ -262,7 +289,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             btn.fillColor = SKColor(red: 0.3, green: 0.15, blue: 0.4, alpha: 0.9)
             btn.strokeColor = SKColor(red: 0.6, green: 0.3, blue: 0.8, alpha: 1)
             btn.lineWidth = 1.5
-            btn.position = CGPoint(x: -size.width / 2 + 60, y: size.height / 2 - safeTop - 120)
+            btn.position = CGPoint(x: -size.width / 2 + 60, y: size.height / 2 - layoutSafeTop - 120)
             btn.zPosition = 110
             btn.name = "timeDilationBtn"
             cameraNode.addChild(btn)
@@ -281,7 +308,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             btn.fillColor = SKColor(red: 0.15, green: 0.2, blue: 0.4, alpha: 0.9)
             btn.strokeColor = SKColor(red: 0.3, green: 0.5, blue: 0.9, alpha: 1)
             btn.lineWidth = 1.5
-            btn.position = CGPoint(x: -size.width / 2 + 60, y: size.height / 2 - safeTop - 155)
+            btn.position = CGPoint(x: -size.width / 2 + 60, y: size.height / 2 - layoutSafeTop - 155)
             btn.zPosition = 110
             btn.name = "timeRewindBtn"
             cameraNode.addChild(btn)
@@ -559,6 +586,19 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         ]))
     }
     
+    private func point(_ point: CGPoint, hits node: SKNode, minimumSize: CGSize) -> Bool {
+        let frame = node.calculateAccumulatedFrame()
+        let width = max(frame.width, minimumSize.width)
+        let height = max(frame.height, minimumSize.height)
+        let expanded = CGRect(
+            x: frame.midX - width / 2,
+            y: frame.midY - height / 2,
+            width: width,
+            height: height
+        )
+        return expanded.contains(point)
+    }
+
     // MARK: - Touch Input
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -572,11 +612,13 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         let uiLocation = touch.location(in: cameraNode)
         
         // Temporal ability buttons
-        if let dilBtn = cameraNode.childNode(withName: "timeDilationBtn"), dilBtn.contains(uiLocation) {
+        if let dilBtn = cameraNode.childNode(withName: "timeDilationBtn"),
+           point(uiLocation, hits: dilBtn, minimumSize: CGSize(width: 90, height: 60)) {
             activateTimeDilation()
             return
         }
-        if let rewBtn = cameraNode.childNode(withName: "timeRewindBtn"), rewBtn.contains(uiLocation) {
+        if let rewBtn = cameraNode.childNode(withName: "timeRewindBtn"),
+           point(uiLocation, hits: rewBtn, minimumSize: CGSize(width: 90, height: 60)) {
             activateTimeRewind()
             return
         }
@@ -626,11 +668,13 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         // Summary — check buttons
         if gameState.phase == .summary {
             let loc = touch.location(in: cameraNode)
-            if let techBtn = cameraNode.childNode(withName: "techTreeButton"), techBtn.contains(loc) {
+            if let techBtn = cameraNode.childNode(withName: "techTreeButton"),
+               point(loc, hits: techBtn, minimumSize: CGSize(width: 200, height: 44)) {
                 openTechTree()
                 return
             }
-            if let restart = cameraNode.childNode(withName: "restartButton"), restart.contains(loc) {
+            if let restart = cameraNode.childNode(withName: "restartButton"),
+               point(loc, hits: restart, minimumSize: CGSize(width: 160, height: 44)) {
                 restartLoop()
                 return
             }

@@ -5,6 +5,7 @@
 ## 🔨 In Progress
 
 ## 👀 Review
+- [ ] TICK-018: UI/UX polish pass — clarity, spacing, consistency, Kenney-styled controls | Priority: high | Review: 2026-02-19
 
 ## ✅ Done
 - [x] TICK-001: Project scaffold — Xcode project, SpriteKit template, ECS foundation, GitHub push | Completed: 2026-02-18
