@@ -10,11 +10,16 @@ final class ResourceSystem {
         var biomassDelta: Double = 0
         var researchDelta: Double = 0
         
-        // Process all active buildings
+        // Process all enabled buildings.
+        // Includes staffed buildings (isActive) and unstaffed automation targets (COL-03).
         for (col, row, tile) in grid.allBuildings() {
-            guard tile.isActive, let buildingType = tile.buildingType else { continue }
+            guard !tile.isDisabled, let buildingType = tile.buildingType else { continue }
             
             let workerCount = tile.assignedWorkers
+            let automationRate = techEffects?.automationRate ?? 0.0
+            // Preserve pre-COL-03 behavior: unstaffed buildings do nothing unless automation is unlocked.
+            if workerCount == 0 && automationRate <= 0 { continue }
+
             let prod = buildingType.production
             let cons = buildingType.consumption
             let adjacencyMult = grid.adjacencyMultiplier(col: col, row: row)
@@ -32,7 +37,7 @@ final class ResourceSystem {
                 workerMult = 1.0
             } else {
                 // Automation Protocol: unstaffed production
-                workerMult = techEffects?.automationRate ?? 0.0
+                workerMult = automationRate
             }
             
             // Production scaled by worker efficiency, adjacency, AND tech bonuses

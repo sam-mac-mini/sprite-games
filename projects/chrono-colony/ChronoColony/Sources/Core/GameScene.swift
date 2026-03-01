@@ -422,6 +422,8 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         gameState.research = snap.research
         gameState.stability = snap.stability
         gameState.totalColonists = snap.totalColonists
+        // TMP-07 fix: restore assigned colonists from snapshot to keep worker availability in sync.
+        gameState.assignedColonists = min(snap.assignedColonists, snap.totalColonists)
         gameState.phase = snap.phase
         
         // Clear snapshots after rewind point
@@ -704,7 +706,12 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 run(SoundManager.shared.build)
                 gridRenderer.highlightTile(col: col, row: row, color: .green)
                 if gameState.availableColonists > 0 {
-                    gridModel.assignWorker(at: col, row: row, state: gameState)
+                    gridModel.assignWorker(
+                        at: col,
+                        row: row,
+                        state: gameState,
+                        maxWorkersOverride: techEffects.maxWorkersPerBuilding
+                    )
                 }
                 // Echo Memory: first building is free
                 if techEffects.firstBuildingFree && !gameState.firstBuildingPlacedThisLoop {
@@ -733,20 +740,35 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 showFloatingText("+\(Int(refund)) ⛏", at: col, row: row, color: .green)
             }
         } else if buildMenu.isAssignWorkerMode {
-            if let tile = gridModel.tile(at: col, row: row), let bType = tile.buildingType {
-                if tile.assignedWorkers >= bType.maxWorkers {
+            if let tile = gridModel.tile(at: col, row: row), tile.buildingType != nil {
+                let maxWorkers = techEffects.maxWorkersPerBuilding
+                if tile.assignedWorkers >= maxWorkers {
                     // At max — remove a worker instead
                     gridModel.removeWorker(at: col, row: row, state: gameState)
                     showFloatingText("-1 👤", at: col, row: row, color: .orange)
                 } else if gameState.availableColonists > 0 {
                     let wasWorkers = tile.assignedWorkers
-                    gridModel.assignWorker(at: col, row: row, state: gameState)
-                    run(SoundManager.shared.assign)
-                    tutorial.onWorkerAssigned()
-                    if wasWorkers == 0 {
-                        showFloatingText("+1 👤 Active!", at: col, row: row, color: .green)
-                    } else {
-                        showFloatingText("+1 👤 (60% eff)", at: col, row: row, color: SKColor(red: 0.5, green: 0.9, blue: 0.5, alpha: 1))
+                    let didAssign = gridModel.assignWorker(
+                        at: col,
+                        row: row,
+                        state: gameState,
+                        maxWorkersOverride: maxWorkers
+                    )
+                    if didAssign {
+                        run(SoundManager.shared.assign)
+                        tutorial.onWorkerAssigned()
+                        let newWorkers = wasWorkers + 1
+                        if newWorkers == 1 {
+                            showFloatingText("+1 👤 Active!", at: col, row: row, color: .green)
+                        } else {
+                            let eff = newWorkers == 2 ? techEffects.secondWorkerEfficiency : techEffects.thirdWorkerEfficiency
+                            showFloatingText(
+                                "+1 👤 (\(Int((eff * 100).rounded()))% eff)",
+                                at: col,
+                                row: row,
+                                color: SKColor(red: 0.5, green: 0.9, blue: 0.5, alpha: 1)
+                            )
+                        }
                     }
                 } else {
                     showFloatingText("No workers", at: col, row: row, color: .red)

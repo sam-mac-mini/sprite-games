@@ -69,6 +69,8 @@ final class GridModel {
     func placeBuilding(_ type: BuildingType, at col: Int, row: Int, state: GameState) -> Bool {
         guard canPlace(building: type, at: col, row: row, state: state) else { return false }
         tiles[row][col].content = .building(type)
+        // Defensive reset: newly placed buildings should never inherit disabled state from prior occupants.
+        tiles[row][col].isDisabled = false
         state.metal -= type.metalCost
         return true
     }
@@ -80,16 +82,19 @@ final class GridModel {
         state.assignedColonists -= tile.assignedWorkers
         tiles[row][col].content = .empty
         tiles[row][col].assignedWorkers = 0
+        // Clear disabled latch on empty tile so rebuilds always start enabled.
+        tiles[row][col].isDisabled = false
     }
     
     // MARK: - Worker Assignment
     
     @discardableResult
-    func assignWorker(at col: Int, row: Int, state: GameState) -> Bool {
+    func assignWorker(at col: Int, row: Int, state: GameState, maxWorkersOverride: Int? = nil) -> Bool {
         guard tiles[row][col].buildingType != nil else { return false }
         guard state.availableColonists > 0 else { return false }
-        guard let building = tiles[row][col].buildingType,
-              tiles[row][col].assignedWorkers < building.maxWorkers else { return false }
+        guard let building = tiles[row][col].buildingType else { return false }
+        let maxWorkers = maxWorkersOverride ?? building.maxWorkers
+        guard tiles[row][col].assignedWorkers < maxWorkers else { return false }
         tiles[row][col].assignedWorkers += 1
         state.assignedColonists += 1
         return true

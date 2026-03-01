@@ -6,6 +6,10 @@
 
 ## 👀 Review
 - [ ] TICK-018: UI/UX polish pass — clarity, spacing, consistency, Kenney-styled controls | Priority: high | Review: 2026-02-19
+- [ ] TICK-019: Fix COL-03 Automation Protocol — verified unstaffed buildings produce at 30% when COL-03 is unlocked (targeted simulation check) | Priority: high | Review: 2026-03-01
+- [ ] TICK-020: Fix COL-06 Leadership regression — worker cap now respects tech effects (3 workers after COL-06), with third-worker throughput verified via targeted simulation check | Priority: high | Review: 2026-03-01
+- [ ] TICK-021: Fix disabled-state carryover bug — demolished disabled buildings now clear disabled state so rebuilds start enabled (verified with targeted simulation check) | Priority: high | Review: 2026-03-01
+- [ ] TICK-022: Fix TMP-07 Time Rewind state desync — rewind restore now reapplies `assignedColonists` from snapshot (clamped to total colonists) to prevent worker availability desync | Priority: high | Review: 2026-03-01
 
 ## ✅ Done
 - [x] TICK-001: Project scaffold — Xcode project, SpriteKit template, ECS foundation, GitHub push | Completed: 2026-02-18
