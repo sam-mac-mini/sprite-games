@@ -3,15 +3,15 @@
 ## 🔖 Backlog
 
 ## 🔨 In Progress
+- [ ] TICK-018: UI/UX polish pass — clarity, spacing, consistency, Kenney-styled controls | Priority: high | Assigned: 2026-03-02
 
 ## 👀 Review
-- [ ] TICK-018: UI/UX polish pass — clarity, spacing, consistency, Kenney-styled controls | Priority: high | Review: 2026-02-19
-- [ ] TICK-019: Fix COL-03 Automation Protocol — verified unstaffed buildings produce at 30% when COL-03 is unlocked (targeted simulation check) | Priority: high | Review: 2026-03-01
-- [ ] TICK-020: Fix COL-06 Leadership regression — worker cap now respects tech effects (3 workers after COL-06), with third-worker throughput verified via targeted simulation check | Priority: high | Review: 2026-03-01
-- [ ] TICK-021: Fix disabled-state carryover bug — demolished disabled buildings now clear disabled state so rebuilds start enabled (verified with targeted simulation check) | Priority: high | Review: 2026-03-01
-- [ ] TICK-022: Fix TMP-07 Time Rewind state desync — rewind restore now reapplies `assignedColonists` from snapshot (clamped to total colonists) to prevent worker availability desync | Priority: high | Review: 2026-03-01
 
 ## ✅ Done
+- [x] TICK-019: Fix COL-03 Automation Protocol — unstaffed enabled buildings now produce at automation rate when COL-03 is unlocked | Completed: 2026-03-02
+- [x] TICK-020: Fix COL-06 Leadership regression — worker assignment cap now respects tech effects (up to 3 workers) | Completed: 2026-03-02
+- [x] TICK-021: Fix disabled-state carryover bug — demolish/place now clears `isDisabled` so rebuilds start enabled | Completed: 2026-03-02
+- [x] TICK-022: Fix TMP-07 Time Rewind state desync — rewind restore reapplies `assignedColonists` safely | Completed: 2026-03-02
 - [x] TICK-001: Project scaffold — Xcode project, SpriteKit template, ECS foundation, GitHub push | Completed: 2026-02-18
 - [x] TICK-002: Grid system — 10x10 tile grid, tap detection, tile state, procedural map gen | Completed: 2026-02-18
 - [x] TICK-003: Building system — place/demolish 4 starter buildings, metal costs, partial refund | Completed: 2026-02-18
