@@ -142,6 +142,22 @@ enum BuildingType: String, CaseIterable, Identifiable {
         case .megaStructure: return "🏛"
         }
     }
+
+    /// Compact menu title to preserve readability on small control cards.
+    var menuTitle: String {
+        switch self {
+        case .metalExtractor: return "EXTRACT"
+        case .farm: return "FARM"
+        case .solarArray: return "SOLAR"
+        case .researchLab: return "LAB"
+        case .storageDepot: return "DEPOT"
+        case .medicalBay: return "MED BAY"
+        case .shieldGenerator: return "SHIELD"
+        case .cloneVats: return "CLONE"
+        case .temporalRift: return "RIFT"
+        case .megaStructure: return "MEGA"
+        }
+    }
     
     /// Asset catalog image name for this building
     var imageName: String {

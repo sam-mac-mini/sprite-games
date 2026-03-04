@@ -91,23 +91,28 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
 
         // Reserve menu space based on current unlocked item count so status text doesn't overlap.
         let menuItemCount = unlockedBuildings.count + 3 // +demolish +staff +toggle
-        let menuRows = menuItemCount > 9 ? 2 : 1
+        var menuRows = menuItemCount > 9 ? 2 : 1
+        if size.width < 360, menuItemCount >= 11 {
+            menuRows = 3
+        }
         let menuItemsPerRow = Int(ceil(Double(menuItemCount) / Double(menuRows)))
-        let menuButtonSpacing: CGFloat = 6
-        let menuMaxWidth = size.width - 20
+        let menuButtonSpacing: CGFloat = size.width < 360 ? 4 : 6
+        let menuSideInset: CGFloat = size.width < 360 ? 28 : 20
+        let menuMaxWidth = size.width - menuSideInset
         var estimatedMenuButtonSize: CGFloat = 46
         let rowSpacingWidth = CGFloat(max(0, menuItemsPerRow - 1)) * menuButtonSpacing
         let idealRowWidth = CGFloat(menuItemsPerRow) * estimatedMenuButtonSize + rowSpacingWidth
         if idealRowWidth > menuMaxWidth {
             estimatedMenuButtonSize = (menuMaxWidth - rowSpacingWidth) / CGFloat(menuItemsPerRow)
         }
-        estimatedMenuButtonSize = max(34, estimatedMenuButtonSize)
+        let minMenuButtonSize: CGFloat = size.width < 360 ? 36 : 34
+        estimatedMenuButtonSize = max(minMenuButtonSize, estimatedMenuButtonSize)
 
         let estimatedMenuPanelHeight: CGFloat
         if menuRows == 1 {
             estimatedMenuPanelHeight = max(estimatedMenuButtonSize + 24, 76)
         } else {
-            estimatedMenuPanelHeight = max((estimatedMenuButtonSize + menuButtonSpacing) * 2 + 16, 76)
+            estimatedMenuPanelHeight = max((estimatedMenuButtonSize + menuButtonSpacing) * CGFloat(menuRows) + 16, 76)
         }
         let buildMenuHeight = estimatedMenuPanelHeight + 20
 
@@ -213,18 +218,21 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         prodTitle.verticalAlignmentMode = .center
         panel.addChild(prodTitle)
         
-        // Resource flow indicators
-        let resources = ["⛏ +0/s", "⚡ +0/s", "🌱 +0/s", "🔬 +0/s"]
-        let colW = width / CGFloat(resources.count + 1)
-        let startX = -width / 2 + colW * 0.8
-        
-        for (i, res) in resources.enumerated() {
+        // Resource flow indicators (compact text tokens prevent clipping on narrow screens)
+        let resourceTokens = ["MTL", "PWR", "BIO", "SCI"]
+        let isCompactStatus = size.width < 390 || width < 340
+        let resourceFontSize: CGFloat = isCompactStatus ? 10.5 : 12
+        let innerWidth = width - 20
+        let segmentWidth = innerWidth / CGFloat(resourceTokens.count)
+        let startX = -innerWidth / 2 + segmentWidth / 2
+
+        for (i, token) in resourceTokens.enumerated() {
             let label = SKLabelNode(fontNamed: "Menlo")
-            label.text = res
-            label.fontSize = 12
+            label.text = "\(token) +0/s"
+            label.fontSize = resourceFontSize
             label.fontColor = SKColor(white: 0.92, alpha: 1)
-            label.position = CGPoint(x: startX + CGFloat(i) * colW, y: panelH / 2 - 34)
-            label.horizontalAlignmentMode = .left
+            label.position = CGPoint(x: startX + CGFloat(i) * segmentWidth, y: panelH / 2 - 34)
+            label.horizontalAlignmentMode = .center
             label.verticalAlignmentMode = .center
             label.name = "prodLabel_\(i)"
             panel.addChild(label)
@@ -232,7 +240,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         
         // Event/status line
         let statusLine = SKLabelNode(fontNamed: "Menlo")
-        statusLine.text = "⏱ Build quickly — collapse is coming"
+        statusLine.text = "BUILD QUICKLY — COLLAPSE IS COMING"
         statusLine.fontSize = 11
         statusLine.fontColor = SKColor(white: 0.62, alpha: 1)
         statusLine.position = CGPoint(x: 0, y: -panelH / 2 + 14)
@@ -246,12 +254,12 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         guard let panel = childNode(withName: "statusArea") else { return }
         
         let deltas = [gameState.metalDelta, gameState.energyDelta, gameState.biomassDelta, gameState.researchDelta]
-        let symbols = ["⛏", "⚡", "🌱", "🔬"]
-        
+        let resourceTokens = ["MTL", "PWR", "BIO", "SCI"]
+
         for (i, delta) in deltas.enumerated() {
             if let label = panel.childNode(withName: "prodLabel_\(i)") as? SKLabelNode {
                 let sign = delta >= 0 ? "+" : ""
-                label.text = "\(symbols[i]) \(sign)\(String(format: "%.0f", delta))/s"
+                label.text = "\(resourceTokens[i]) \(sign)\(String(format: "%.0f", delta))/s"
                 label.fontColor = delta < 0 ? SKColor(red: 1, green: 0.5, blue: 0.5, alpha: 1) : .white
             }
         }
@@ -266,9 +274,13 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 switch gameState.phase {
                 case .expansion:
                     let buildings = gridModel.allBuildings().count
-                    statusLine.text = "🏗 \(buildings) buildings • \(gameState.availableColonists) workers free"
+                    if size.width < 390 {
+                        statusLine.text = "BLD \(buildings) • FREE CREW \(gameState.availableColonists)"
+                    } else {
+                        statusLine.text = "BUILDINGS \(buildings) • FREE CREW \(gameState.availableColonists)"
+                    }
                 case .escalation:
-                    statusLine.text = "⚠ Stellar instability — systems failing!"
+                    statusLine.text = "STELLAR INSTABILITY — SYSTEMS FAILING"
                     statusLine.fontColor = .orange
                 default:
                     statusLine.text = ""
@@ -828,7 +840,15 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     private func showBuildingInfo(type: BuildingType, tile: Tile, col: Int, row: Int) {
         infoPanel?.dismiss()
         let mult = gridModel.adjacencyMultiplier(col: col, row: row)
-        let panel = InfoPanelRenderer(buildingType: type, tile: tile, adjacencyMultiplier: mult, sceneSize: size)
+        let panel = InfoPanelRenderer(
+            buildingType: type,
+            tile: tile,
+            adjacencyMultiplier: mult,
+            sceneSize: size,
+            maxWorkers: techEffects.maxWorkersPerBuilding,
+            secondWorkerEfficiency: techEffects.secondWorkerEfficiency,
+            thirdWorkerEfficiency: techEffects.thirdWorkerEfficiency
+        )
         cameraNode.addChild(panel.node)
         infoPanel = panel
     }
