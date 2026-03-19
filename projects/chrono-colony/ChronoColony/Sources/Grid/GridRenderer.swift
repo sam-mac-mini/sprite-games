@@ -316,8 +316,8 @@ final class GridRenderer {
             
             // Worker count badge (show count if >1)
             let badge = SKLabelNode(fontNamed: "Menlo-Bold")
-            badge.text = workers > 1 ? "👤×\(workers)" : "👤"
-            badge.fontSize = tileSize * 0.18
+            badge.text = workers > 1 ? "WRK×\(workers)" : "WRK"
+            badge.fontSize = tileSize * 0.15
             badge.position = CGPoint(x: tileSize * 0.25, y: tileSize * 0.28)
             badge.verticalAlignmentMode = .center
             badge.horizontalAlignmentMode = .center

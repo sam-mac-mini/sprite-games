@@ -201,7 +201,7 @@ final class EventDeck {
         // === SEVERE EVENTS (escalation only) ===
         GameEvent(
             id: "core_breach",
-            title: "⚠ Core Breach",
+            title: "CORE BREACH",
             description: "Stellar core is fracturing. Massive energy required to stabilize or accept heavy losses.",
             severity: .severe,
             choices: [
@@ -221,7 +221,7 @@ final class EventDeck {
         ),
         GameEvent(
             id: "gravitational_collapse",
-            title: "⚠ Gravitational Anomaly",
+            title: "GRAVITATIONAL ANOMALY",
             description: "Spacetime distortion pulling structures apart. Sacrifice resources or lose infrastructure.",
             severity: .severe,
             choices: [
@@ -241,7 +241,7 @@ final class EventDeck {
         ),
         GameEvent(
             id: "last_stand",
-            title: "⚠ Final Warning",
+            title: "FINAL WARNING",
             description: "The star is dying. Pour everything into survival or accept the end gracefully.",
             severity: .severe,
             choices: [

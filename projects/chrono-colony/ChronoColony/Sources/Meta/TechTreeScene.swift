@@ -15,9 +15,11 @@ final class TechTreeScene: SKScene {
     
     // Safe-area / layout
     private var safeTop: CGFloat = 0
+    private var safeBottom: CGFloat = 0
     private var tabsY: CGFloat = 0
     private var contentTopY: CGFloat = 0
-    private let contentBottomY: CGFloat = 86
+    private var bottomButtonY: CGFloat { max(35, safeBottom + 24) }
+    private var contentBottomY: CGFloat { max(86, bottomButtonY + 24) }
     private var contentHeight: CGFloat { contentTopY - contentBottomY }
     private var contentRect: CGRect {
         CGRect(x: 0, y: contentBottomY, width: size.width, height: contentHeight)
@@ -49,6 +51,7 @@ final class TechTreeScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(red: 0.03, green: 0.03, blue: 0.06, alpha: 1)
         safeTop = view.safeAreaInsets.top
+        safeBottom = view.safeAreaInsets.bottom
         meta = MetaState.load()
         buildUI()
         installPanGestureIfNeeded(view: view)
@@ -85,8 +88,15 @@ final class TechTreeScene: SKScene {
         updateKPLabel()
         
         let stats = SKLabelNode(fontNamed: "Menlo")
-        stats.text = "Loops: \(meta.totalLoops) • Best: \(meta.bestLoopScore) KP"
-        stats.fontSize = 9
+        let statsText = "Loops: \(meta.totalLoops) • Best: \(meta.bestLoopScore) KP"
+        stats.text = statsText
+        stats.fontSize = fittedFontSize(
+            for: statsText,
+            fontNamed: "Menlo",
+            baseFontSize: 9,
+            minFontSize: 7.6,
+            maxWidth: size.width - 20
+        )
         stats.fontColor = SKColor(white: 0.45, alpha: 1)
         stats.position = CGPoint(x: size.width / 2, y: topBase - 32)
         stats.zPosition = 30
@@ -138,7 +148,7 @@ final class TechTreeScene: SKScene {
         addChild(dragHint)
         
         // Bottom buttons: Apply + Start
-        applyButton = makeBottomButton(name: "applyBtn", text: "APPLY", width: 116, x: size.width / 2 - 66, y: 35,
+        applyButton = makeBottomButton(name: "applyBtn", text: "APPLY", width: 116, x: size.width / 2 - 66, y: bottomButtonY,
                                        fill: SKColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 0.9),
                                        stroke: SKColor(white: 0.2, alpha: 0.7))
         if let applyButton = applyButton {
@@ -147,7 +157,7 @@ final class TechTreeScene: SKScene {
             applyLabel = applyButton.childNode(withName: "label") as? SKLabelNode
         }
         
-        let startBtn = makeBottomButton(name: "startLoopBtn", text: "▶ START", width: 116, x: size.width / 2 + 66, y: 35,
+        let startBtn = makeBottomButton(name: "startLoopBtn", text: "START LOOP", width: 116, x: size.width / 2 + 66, y: bottomButtonY,
                                         fill: SKColor(red: 0.15, green: 0.4, blue: 0.2, alpha: 1),
                                         stroke: SKColor(red: 0.25, green: 0.6, blue: 0.3, alpha: 1))
         startBtn.zPosition = 30
@@ -187,8 +197,21 @@ final class TechTreeScene: SKScene {
             tab.addChild(icon)
             
             let label = SKLabelNode(fontNamed: "Menlo-Bold")
-            label.text = branch.shortName
-            label.fontSize = 9
+            let labelMaxWidth = max(26, tabWidth * 0.56)
+            let labelFontSize = fittedFontSize(
+                for: branch.shortName,
+                fontNamed: "Menlo-Bold",
+                baseFontSize: 9,
+                minFontSize: 7,
+                maxWidth: labelMaxWidth
+            )
+            label.text = truncatedText(
+                branch.shortName,
+                fontNamed: "Menlo-Bold",
+                fontSize: labelFontSize,
+                maxWidth: labelMaxWidth
+            )
+            label.fontSize = labelFontSize
             label.fontColor = isSelected ? .white : SKColor(white: 0.5, alpha: 1)
             label.position = CGPoint(x: 7, y: 0)
             label.verticalAlignmentMode = .center
@@ -375,23 +398,39 @@ final class TechTreeScene: SKScene {
         let status = SKLabelNode(fontNamed: "Menlo-Bold")
         status.text = {
             switch state {
-            case .unlocked: return "✅"
-            case .affordable: return "💡"
-            case .tooExpensive: return "🔒"
-            case .locked: return "⛔"
+            case .unlocked: return "OK"
+            case .affordable: return "GO"
+            case .tooExpensive: return "KP"
+            case .locked: return "LK"
             }
         }()
-        status.fontSize = 13
-        status.position = CGPoint(x: -nodeWidth / 2 + 12, y: nodeHeight / 2 - 16)
+        status.fontSize = 8.6
+        status.fontColor = {
+            switch state {
+            case .unlocked: return SKColor(red: 0.35, green: 0.8, blue: 0.35, alpha: 0.95)
+            case .affordable: return SKColor(red: 0.45, green: 0.85, blue: 1, alpha: 1)
+            case .tooExpensive: return SKColor(red: 0.85, green: 0.35, blue: 0.35, alpha: 0.9)
+            case .locked: return SKColor(white: 0.45, alpha: 1)
+            }
+        }()
+        status.position = CGPoint(x: -nodeWidth / 2 + 13, y: nodeHeight / 2 - 16)
         status.verticalAlignmentMode = .center
         card.addChild(status)
         
-        // Name (wrapped to avoid overflow)
-        let nameLines = wordWrap(node.name, maxChars: max(10, Int((nodeWidth - 34) / 5.3))).prefix(2)
+        // Name (width-wrapped to avoid overflow)
+        let nameFontSize: CGFloat = 8.5
+        let nameMaxWidth = max(36, nodeWidth - 34)
+        let nameLines = wordWrapToWidth(
+            node.name,
+            fontNamed: "Menlo-Bold",
+            fontSize: nameFontSize,
+            maxWidth: nameMaxWidth,
+            maxLines: 2
+        )
         for (i, line) in nameLines.enumerated() {
             let name = SKLabelNode(fontNamed: "Menlo-Bold")
             name.text = line
-            name.fontSize = 8.5
+            name.fontSize = nameFontSize
             name.horizontalAlignmentMode = .left
             name.verticalAlignmentMode = .center
             name.position = CGPoint(x: -nodeWidth / 2 + 24, y: nodeHeight / 2 - 15 - CGFloat(i) * 9)
@@ -399,13 +438,20 @@ final class TechTreeScene: SKScene {
             card.addChild(name)
         }
         
-        // Description (wrapped + clamped)
+        // Description (width-wrapped + clamped)
         let descTop = nodeHeight / 2 - 33 - CGFloat(max(0, nameLines.count - 1)) * 9
-        let descLines = wordWrap(node.description, maxChars: max(12, Int((nodeWidth - 14) / 5.6)))
-        for (i, line) in descLines.prefix(2).enumerated() {
+        let descFontSize: CGFloat = 7.3
+        let descLines = wordWrapToWidth(
+            node.description,
+            fontNamed: "Menlo",
+            fontSize: descFontSize,
+            maxWidth: max(40, nodeWidth - 14),
+            maxLines: 2
+        )
+        for (i, line) in descLines.enumerated() {
             let desc = SKLabelNode(fontNamed: "Menlo")
             desc.text = line
-            desc.fontSize = 7.3
+            desc.fontSize = descFontSize
             desc.horizontalAlignmentMode = .left
             desc.verticalAlignmentMode = .center
             desc.position = CGPoint(x: -nodeWidth / 2 + 8, y: descTop - CGFloat(i) * 10)
@@ -417,7 +463,6 @@ final class TechTreeScene: SKScene {
         cost.horizontalAlignmentMode = .right
         cost.verticalAlignmentMode = .center
         cost.position = CGPoint(x: nodeWidth / 2 - 7, y: -nodeHeight / 2 + 15)
-        cost.fontSize = 8.5
         switch state {
         case .unlocked:
             cost.text = "OWNED"
@@ -432,6 +477,13 @@ final class TechTreeScene: SKScene {
             cost.text = "\(node.cost) KP"
             cost.fontColor = SKColor(white: 0.3, alpha: 1)
         }
+        cost.fontSize = fittedFontSize(
+            for: cost.text ?? "",
+            fontNamed: "Menlo-Bold",
+            baseFontSize: 8.5,
+            minFontSize: 6.8,
+            maxWidth: nodeWidth - 14
+        )
         card.addChild(cost)
         
         return card
@@ -446,14 +498,14 @@ final class TechTreeScene: SKScene {
         isDragging = false
         
         // Start
-        if abs(loc.x - (size.width / 2 + 66)) < 58 && abs(loc.y - 35) < 22 {
+        if abs(loc.x - (size.width / 2 + 66)) < 58 && abs(loc.y - bottomButtonY) < 22 {
             run(SoundManager.shared.newloop)
             onStartLoop?()
             return
         }
         
         // Apply
-        if abs(loc.x - (size.width / 2 - 66)) < 58 && abs(loc.y - 35) < 22 {
+        if abs(loc.x - (size.width / 2 - 66)) < 58 && abs(loc.y - bottomButtonY) < 22 {
             if pendingPurchases > 0 {
                 showToast("Applied \(pendingPurchases) unlock(s)", color: SKColor(red: 0.4, green: 0.9, blue: 1, alpha: 1))
                 pendingPurchases = 0
@@ -579,7 +631,13 @@ final class TechTreeScene: SKScene {
         
         let label = SKLabelNode(fontNamed: "Menlo-Bold")
         label.text = text
-        label.fontSize = 12
+        label.fontSize = fittedFontSize(
+            for: text,
+            fontNamed: "Menlo-Bold",
+            baseFontSize: 12,
+            minFontSize: 9.2,
+            maxWidth: width - 14
+        )
         label.fontColor = .white
         label.verticalAlignmentMode = .center
         label.name = "label"
@@ -589,28 +647,45 @@ final class TechTreeScene: SKScene {
     
     private func refreshApplyButton() {
         guard let applyButton = applyButton, let applyLabel = applyLabel else { return }
+        let applyText: String
         if pendingPurchases > 0 {
             applyButton.fillColor = SKColor(red: 0.12, green: 0.3, blue: 0.45, alpha: 1)
             applyButton.strokeColor = SKColor(red: 0.3, green: 0.6, blue: 0.9, alpha: 1)
             applyButton.alpha = 1.0
-            applyLabel.text = "APPLY (\(pendingPurchases))"
+            applyText = "APPLY (\(pendingPurchases))"
             applyLabel.fontColor = .white
         } else {
             applyButton.fillColor = SKColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 0.9)
             applyButton.strokeColor = SKColor(white: 0.2, alpha: 0.7)
             applyButton.alpha = 0.75
-            applyLabel.text = "APPLY"
+            applyText = "APPLY"
             applyLabel.fontColor = SKColor(white: 0.65, alpha: 1)
         }
+
+        applyLabel.text = applyText
+        applyLabel.fontSize = fittedFontSize(
+            for: applyText,
+            fontNamed: "Menlo-Bold",
+            baseFontSize: 12,
+            minFontSize: 9.5,
+            maxWidth: 102
+        )
     }
     
     private func showToast(_ text: String, color: SKColor) {
         toastNode?.removeFromParent()
         let toast = SKLabelNode(fontNamed: "Menlo-Bold")
         toast.text = text
-        toast.fontSize = 11
+        toast.fontSize = fittedFontSize(
+            for: text,
+            fontNamed: "Menlo-Bold",
+            baseFontSize: 11,
+            minFontSize: 8.8,
+            maxWidth: size.width - 24
+        )
         toast.fontColor = color
-        toast.position = CGPoint(x: size.width / 2, y: 62)
+        let toastY = bottomButtonY + 32
+        toast.position = CGPoint(x: size.width / 2, y: toastY)
         toast.zPosition = 40
         addChild(toast)
         toastNode = toast
@@ -662,7 +737,15 @@ final class TechTreeScene: SKScene {
     private func updateKPLabel() {
         let unlocked = meta.unlockedTechIDs.count
         let total = TechTree.allNodes.count
-        kpLabel.text = "💡 \(meta.knowledgePoints) KP • \(unlocked)/\(total) unlocked"
+        let text = "KP \(meta.knowledgePoints) • \(unlocked)/\(total) unlocked"
+        kpLabel.text = text
+        kpLabel.fontSize = fittedFontSize(
+            for: text,
+            fontNamed: "Menlo-Bold",
+            baseFontSize: 13,
+            minFontSize: 10.5,
+            maxWidth: size.width - 20
+        )
     }
     
     private func branchColor(_ branch: TechBranch) -> SKColor {
@@ -673,37 +756,124 @@ final class TechTreeScene: SKScene {
         case .temporal: return SKColor(red: 0.6, green: 0.3, blue: 0.8, alpha: 1)
         }
     }
-    
-    private func wordWrap(_ text: String, maxChars: Int) -> [String] {
-        guard maxChars > 3 else { return [String(text.prefix(3))] }
-        var words: [String] = []
-        
-        // Split overly long words into chunks so they can't overflow labels.
-        for raw in text.split(separator: " ").map(String.init) {
-            if raw.count <= maxChars {
-                words.append(raw)
-            } else {
-                var start = raw.startIndex
-                while start < raw.endIndex {
-                    let end = raw.index(start, offsetBy: maxChars, limitedBy: raw.endIndex) ?? raw.endIndex
-                    words.append(String(raw[start..<end]))
-                    start = end
-                }
+
+    private func textWidth(_ text: String, fontNamed: String, fontSize: CGFloat) -> CGFloat {
+        let attrs: [NSAttributedString.Key: Any]
+        if let font = UIFont(name: fontNamed, size: fontSize) {
+            attrs = [.font: font]
+        } else {
+            attrs = [.font: UIFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)]
+        }
+        return (text as NSString).size(withAttributes: attrs).width
+    }
+
+    private func fittedFontSize(
+        for text: String,
+        fontNamed: String,
+        baseFontSize: CGFloat,
+        minFontSize: CGFloat,
+        maxWidth: CGFloat
+    ) -> CGFloat {
+        guard maxWidth > 0 else { return baseFontSize }
+
+        var candidate = baseFontSize
+        let floorSize = min(minFontSize, baseFontSize)
+
+        while candidate > floorSize {
+            if textWidth(text, fontNamed: fontNamed, fontSize: candidate) <= maxWidth {
+                return candidate
+            }
+            candidate -= 0.4
+        }
+
+        return floorSize
+    }
+
+    private func truncatedText(
+        _ text: String,
+        fontNamed: String,
+        fontSize: CGFloat,
+        maxWidth: CGFloat
+    ) -> String {
+        guard maxWidth > 0 else { return text }
+        if textWidth(text, fontNamed: fontNamed, fontSize: fontSize) <= maxWidth {
+            return text
+        }
+
+        var trimmed = text
+        while !trimmed.isEmpty {
+            trimmed.removeLast()
+            let candidate = trimmed + "…"
+            if textWidth(candidate, fontNamed: fontNamed, fontSize: fontSize) <= maxWidth {
+                return candidate
             }
         }
-        
+
+        return "…"
+    }
+    
+    private func wordWrapToWidth(
+        _ text: String,
+        fontNamed: String,
+        fontSize: CGFloat,
+        maxWidth: CGFloat,
+        maxLines: Int
+    ) -> [String] {
+        guard !text.isEmpty, maxWidth > 0, maxLines > 0 else { return [] }
+
+        let words = text.split(separator: " ").map(String.init)
         var lines: [String] = []
         var current = ""
-        for word in words {
-            let test = current.isEmpty ? word : current + " " + word
-            if test.count > maxChars && !current.isEmpty {
+
+        for (index, word) in words.enumerated() {
+            let candidate = current.isEmpty ? word : "\(current) \(word)"
+            if textWidth(candidate, fontNamed: fontNamed, fontSize: fontSize) <= maxWidth {
+                current = candidate
+                continue
+            }
+
+            if !current.isEmpty {
                 lines.append(current)
+                if lines.count == maxLines {
+                    let overflow = ([word] + Array(words.dropFirst(index + 1))).joined(separator: " ")
+                    let merged = lines[maxLines - 1] + " " + overflow
+                    lines[maxLines - 1] = truncatedText(
+                        merged,
+                        fontNamed: fontNamed,
+                        fontSize: fontSize,
+                        maxWidth: maxWidth
+                    )
+                    return lines
+                }
                 current = word
             } else {
-                current = test
+                // Single long token — hard truncate to fit.
+                lines.append(
+                    truncatedText(
+                        word,
+                        fontNamed: fontNamed,
+                        fontSize: fontSize,
+                        maxWidth: maxWidth
+                    )
+                )
+                if lines.count == maxLines { return lines }
+                current = ""
             }
         }
-        if !current.isEmpty { lines.append(current) }
+
+        if !current.isEmpty {
+            if lines.count < maxLines {
+                lines.append(current)
+            } else {
+                lines[maxLines - 1] = truncatedText(
+                    lines[maxLines - 1] + " " + current,
+                    fontNamed: fontNamed,
+                    fontSize: fontSize,
+                    maxWidth: maxWidth
+                )
+            }
+        }
+
         return lines
     }
 }

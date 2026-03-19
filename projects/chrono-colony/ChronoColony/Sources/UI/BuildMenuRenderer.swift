@@ -151,7 +151,7 @@ final class BuildMenuRenderer {
         let powerTitle = isUltraCompactMenu ? "PWR" : "POWER"
 
         let demolishSubtitle = isUltraCompactMenu ? "RMV" : "REMOVE"
-        let workersSubtitle = isUltraCompactMenu ? "ASN" : "ASSIGN"
+        let workersSubtitle = isUltraCompactMenu ? "WRK" : "ASSIGN"
         let powerSubtitle = isUltraCompactMenu ? "TGL" : "ON/OFF"
 
         // Action controls use Kenney-style textured cards + clear text (no emojis)
@@ -282,8 +282,16 @@ final class BuildMenuRenderer {
         
         let titleLabel = SKLabelNode(fontNamed: "Menlo-Bold")
         let maxTitleChars = isUltraCompactMenu ? (buttonSize <= 38 ? 5 : 7) : 9
-        titleLabel.text = Self.truncatedTitle(title, maxChars: maxTitleChars)
-        titleLabel.fontSize = max(isUltraCompactMenu ? 6.5 : 7, subtitleFontSize - 1)
+        let titleText = Self.truncatedTitle(title, maxChars: maxTitleChars)
+        titleLabel.text = titleText
+        let baseTitleSize = max(isUltraCompactMenu ? 6.5 : 7, subtitleFontSize - 1)
+        titleLabel.fontSize = fittedMenuLabelFontSize(
+            text: titleText,
+            fontNamed: "Menlo-Bold",
+            baseSize: baseTitleSize,
+            minSize: isUltraCompactMenu ? 6.0 : 6.5,
+            maxWidth: buttonSize - (isUltraCompactMenu ? 8 : 10)
+        )
         titleLabel.fontColor = SKColor(white: 0.8, alpha: 1)
         titleLabel.verticalAlignmentMode = .center
         titleLabel.position = CGPoint(x: 0, y: subtitleYOffset + 9)
@@ -292,8 +300,14 @@ final class BuildMenuRenderer {
         
         let costLabel = SKLabelNode(fontNamed: isUltraCompactMenu ? "Menlo-Bold" : "Menlo")
         costLabel.text = subtitle
-        let subtitleSize = isUltraCompactMenu ? max(6.4, subtitleFontSize - 0.5) : subtitleFontSize
-        costLabel.fontSize = subtitleSize
+        let baseSubtitleSize = isUltraCompactMenu ? max(6.2, subtitleFontSize - 0.5) : subtitleFontSize
+        costLabel.fontSize = fittedMenuLabelFontSize(
+            text: subtitle,
+            fontNamed: isUltraCompactMenu ? "Menlo-Bold" : "Menlo",
+            baseSize: baseSubtitleSize,
+            minSize: isUltraCompactMenu ? 5.8 : 6.4,
+            maxWidth: buttonSize - (isUltraCompactMenu ? 8 : 10)
+        )
         costLabel.fontColor = isUltraCompactMenu
             ? SKColor(white: 0.86, alpha: 1)
             : SKColor(white: 0.82, alpha: 1)
@@ -315,6 +329,31 @@ final class BuildMenuRenderer {
         guard title.count > maxChars else { return title }
         guard maxChars > 1 else { return "…" }
         return String(title.prefix(maxChars - 1)) + "…"
+    }
+
+    private func fittedMenuLabelFontSize(
+        text: String,
+        fontNamed: String,
+        baseSize: CGFloat,
+        minSize: CGFloat,
+        maxWidth: CGFloat
+    ) -> CGFloat {
+        guard maxWidth > 0 else { return baseSize }
+
+        let probe = SKLabelNode(fontNamed: fontNamed)
+        var candidate = baseSize
+        let floor = min(minSize, baseSize)
+
+        while candidate > floor {
+            probe.fontSize = candidate
+            probe.text = text
+            if probe.frame.width <= maxWidth {
+                return candidate
+            }
+            candidate -= 0.3
+        }
+
+        return floor
     }
 
     func updateAffordability(state: GameState) {

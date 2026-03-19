@@ -21,6 +21,8 @@ final class TutorialSystem {
     private var hintNode: SKNode?
     private var arrowNode: SKNode?
     private let sceneSize: CGSize
+    private let safeTopInset: CGFloat
+    private let safeBottomInset: CGFloat
     private weak var parentNode: SKNode?
     
     /// Whether the tutorial is active (first 2 loops)
@@ -28,8 +30,10 @@ final class TutorialSystem {
         currentStep != .done
     }
     
-    init(sceneSize: CGSize) {
+    init(sceneSize: CGSize, safeTop: CGFloat = 0, safeBottom: CGFloat = 0) {
         self.sceneSize = sceneSize
+        self.safeTopInset = max(0, safeTop)
+        self.safeBottomInset = max(0, safeBottom)
     }
     
     /// Check if tutorial should run based on meta progression
@@ -101,14 +105,36 @@ final class TutorialSystem {
         clearHint()
         guard step != .done else { return }
         
-        let (text, position, hasArrow, arrowDirection) = config(for: step)
+        let (text, suggestedPosition, hasArrow, arrowDirection) = config(for: step)
         let compactSummaryHint = (step == .techTreeHint)
+        let position = clampedHintPosition(suggestedPosition, compactHint: compactSummaryHint)
         
         // Background pill with hint text
         let padding: CGFloat = compactSummaryHint ? 12 : 16
-        let charWidth: CGFloat = compactSummaryHint ? 6.4 : 7.2
         let bgHeight: CGFloat = compactSummaryHint ? 26 : 32
-        let bgWidth = min(CGFloat(text.count) * charWidth + padding * 2, sceneSize.width - 20)
+        let maxBgWidth = sceneSize.width - 20
+        let minBgWidth: CGFloat = compactSummaryHint ? 170 : 190
+        let fontName = compactSummaryHint ? "Menlo" : "Menlo-Bold"
+        let baseFontSize: CGFloat = compactSummaryHint ? 10 : 12
+        let minFontSize: CGFloat = compactSummaryHint ? 8.5 : 10
+        let maxTextWidth = maxBgWidth - padding * 2
+
+        let hintFontSize = fittedFontSize(
+            for: text,
+            fontNamed: fontName,
+            baseFontSize: baseFontSize,
+            minFontSize: minFontSize,
+            maxWidth: maxTextWidth
+        )
+        let hintText = truncatedText(
+            text,
+            fontNamed: fontName,
+            fontSize: hintFontSize,
+            maxWidth: maxTextWidth
+        )
+        let textWidth = measuredWidth(for: hintText, fontNamed: fontName, fontSize: hintFontSize)
+        let bgWidth = max(minBgWidth, min(maxBgWidth, textWidth + padding * 2))
+
         let bg = SKShapeNode(rectOf: CGSize(width: bgWidth, height: bgHeight), cornerRadius: compactSummaryHint ? 9 : 10)
         bg.fillColor = SKColor(red: 0.08, green: 0.08, blue: 0.18, alpha: 0.95)
         bg.strokeColor = SKColor(red: 0.3, green: 0.5, blue: 0.9, alpha: 0.8)
@@ -117,9 +143,9 @@ final class TutorialSystem {
         bg.zPosition = 500
         bg.name = "tutorialHint"
         
-        let label = SKLabelNode(fontNamed: compactSummaryHint ? "Menlo" : "Menlo-Bold")
-        label.text = text
-        label.fontSize = compactSummaryHint ? 10 : 12
+        let label = SKLabelNode(fontNamed: fontName)
+        label.text = hintText
+        label.fontSize = hintFontSize
         label.fontColor = .white
         label.horizontalAlignmentMode = .center
         label.verticalAlignmentMode = .center
@@ -134,17 +160,19 @@ final class TutorialSystem {
             arrow.zPosition = 501
             let arrowOffset = compactSummaryHint ? 18.0 : 24.0
             
+            let rawArrowPosition: CGPoint
             switch arrowDirection {
             case .down:
                 arrow.text = "↓"
-                arrow.position = CGPoint(x: position.x, y: position.y - arrowOffset)
+                rawArrowPosition = CGPoint(x: position.x, y: position.y - arrowOffset)
             case .up:
                 arrow.text = "↑"
-                arrow.position = CGPoint(x: position.x, y: position.y + arrowOffset)
+                rawArrowPosition = CGPoint(x: position.x, y: position.y + arrowOffset)
             case .left:
                 arrow.text = "←"
-                arrow.position = CGPoint(x: position.x - bgWidth/2 - 12, y: position.y)
+                rawArrowPosition = CGPoint(x: position.x - bgWidth/2 - 12, y: position.y)
             }
+            arrow.position = clampedArrowPosition(rawArrowPosition, compactHint: compactSummaryHint)
             parentNode?.addChild(arrow)
             
             // Pulse animation on arrow
@@ -169,21 +197,21 @@ final class TutorialSystem {
         
         switch step {
         case .welcome:
-            return ("Welcome to Chrono Colony! 🌟", CGPoint(x: midX, y: midArea + 30), false, .down)
+            return ("Welcome to Chrono Colony", CGPoint(x: midX, y: midArea + 30), false, .down)
         case .selectBuilding:
-            return ("Tap a building in the menu ↓", CGPoint(x: midX, y: bottomArea + 40), true, .down)
+            return ("Tap a building in the menu", CGPoint(x: midX, y: bottomArea + 40), true, .down)
         case .placeBuilding:
             return ("Tap an empty tile to build", CGPoint(x: midX, y: midArea), true, .up)
         case .resourcesExplained:
-            return ("Resources are changing! ↑", CGPoint(x: midX, y: topArea - 20), true, .up)
+            return ("Resources are changing", CGPoint(x: midX, y: topArea - 20), true, .up)
         case .buildFarm:
-            return ("⚠ Food draining! Build a Farm 🌱", CGPoint(x: midX, y: bottomArea + 40), true, .down)
+            return ("Food is draining: build a Farm", CGPoint(x: midX, y: bottomArea + 40), true, .down)
         case .assignWorkers:
-            return ("Tap 👤 Staff, then tap building", CGPoint(x: midX, y: bottomArea + 40), true, .down)
+            return ("Tap Staff, then tap a building", CGPoint(x: midX, y: bottomArea + 40), true, .down)
         case .watchTimer:
-            return ("Survive until collapse! ⏱", CGPoint(x: midX, y: topArea - 20), false, .down)
+            return ("Survive until collapse", CGPoint(x: midX, y: topArea - 20), false, .down)
         case .collapseExplained:
-            return ("You earned Knowledge Points! 💡", CGPoint(x: midX, y: midArea + 40), false, .down)
+            return ("You earned Knowledge Points", CGPoint(x: midX, y: midArea + 40), false, .down)
         case .techTreeHint:
             // Compact summary hint: sits above the CTA with clear separation from rows + button label.
             return ("Tap SPEND KNOWLEDGE", CGPoint(x: midX, y: -94), true, .down)
@@ -203,6 +231,90 @@ final class TutorialSystem {
         ]))
         hintNode = nil
         arrowNode = nil
+    }
+
+    private func clampedHintPosition(_ position: CGPoint, compactHint: Bool) -> CGPoint {
+        let topPadding: CGFloat = compactHint ? 48 : 56
+        let bottomPadding: CGFloat = compactHint ? 84 : 96
+        let rawMinY = -sceneSize.height / 2 + safeBottomInset + bottomPadding
+        let rawMaxY = sceneSize.height / 2 - safeTopInset - topPadding
+
+        // Extremely short layouts (or large accessibility insets) can invert bounds.
+        // Normalize first so clamping always returns a stable in-range value.
+        let minY = min(rawMinY, rawMaxY)
+        let maxY = max(rawMinY, rawMaxY)
+
+        let clampedY = min(max(position.y, minY), maxY)
+        return CGPoint(x: position.x, y: clampedY)
+    }
+
+    private func clampedArrowPosition(_ position: CGPoint, compactHint: Bool) -> CGPoint {
+        let sidePadding: CGFloat = compactHint ? 22 : 26
+        let verticalPadding: CGFloat = compactHint ? 46 : 52
+
+        let minX = -sceneSize.width / 2 + sidePadding
+        let maxX = sceneSize.width / 2 - sidePadding
+
+        let rawMinY = -sceneSize.height / 2 + safeBottomInset + verticalPadding
+        let rawMaxY = sceneSize.height / 2 - safeTopInset - verticalPadding
+        let minY = min(rawMinY, rawMaxY)
+        let maxY = max(rawMinY, rawMaxY)
+
+        let clampedX = min(max(position.x, minX), maxX)
+        let clampedY = min(max(position.y, minY), maxY)
+        return CGPoint(x: clampedX, y: clampedY)
+    }
+
+    private func measuredWidth(for text: String, fontNamed: String, fontSize: CGFloat) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+        let probe = SKLabelNode(fontNamed: fontNamed)
+        probe.fontSize = fontSize
+        probe.text = text
+        return probe.frame.width
+    }
+
+    private func fittedFontSize(
+        for text: String,
+        fontNamed: String,
+        baseFontSize: CGFloat,
+        minFontSize: CGFloat,
+        maxWidth: CGFloat
+    ) -> CGFloat {
+        guard !text.isEmpty, maxWidth > 0 else { return baseFontSize }
+
+        var candidate = baseFontSize
+        let floorSize = min(minFontSize, baseFontSize)
+        while candidate > floorSize {
+            if measuredWidth(for: text, fontNamed: fontNamed, fontSize: candidate) <= maxWidth {
+                return candidate
+            }
+            candidate -= 0.4
+        }
+
+        return floorSize
+    }
+
+    private func truncatedText(
+        _ text: String,
+        fontNamed: String,
+        fontSize: CGFloat,
+        maxWidth: CGFloat
+    ) -> String {
+        guard !text.isEmpty, maxWidth > 0 else { return text }
+        if measuredWidth(for: text, fontNamed: fontNamed, fontSize: fontSize) <= maxWidth {
+            return text
+        }
+
+        var trimmed = text
+        while !trimmed.isEmpty {
+            trimmed.removeLast()
+            let candidate = trimmed + "…"
+            if measuredWidth(for: candidate, fontNamed: fontNamed, fontSize: fontSize) <= maxWidth {
+                return candidate
+            }
+        }
+
+        return "…"
     }
     
     // MARK: - Auto-advance welcome

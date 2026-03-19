@@ -50,6 +50,8 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     var safeBottom: CGFloat = 34
     private var layoutSafeTop: CGFloat = 59
     private var layoutSafeBottom: CGFloat = 34
+    private var statusLineMaxWidth: CGFloat = 0
+    private var statusTokenMaxWidth: CGFloat = 0
     
     // MARK: - Scene Setup
     
@@ -185,7 +187,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         buildMenu.updateAffordability(state: gameState)
         
         // Tutorial system
-        tutorial = TutorialSystem(sceneSize: size)
+        tutorial = TutorialSystem(sceneSize: size, safeTop: layoutSafeTop, safeBottom: layoutSafeBottom)
         tutorial.attach(to: cameraNode)
         tutorial.startWelcomeSequence()
         
@@ -225,11 +227,13 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         let innerWidth = width - 20
         let segmentWidth = innerWidth / CGFloat(resourceTokens.count)
         let startX = -innerWidth / 2 + segmentWidth / 2
+        statusTokenMaxWidth = max(30, segmentWidth - 8)
 
         for (i, token) in resourceTokens.enumerated() {
             let label = SKLabelNode(fontNamed: "Menlo")
             label.text = "\(token) +0/s"
             label.fontSize = resourceFontSize
+            fitLabelWidth(label, maxWidth: statusTokenMaxWidth, minFontSize: isCompactStatus ? 8.6 : 9.4)
             label.fontColor = SKColor(white: 0.92, alpha: 1)
             label.position = CGPoint(x: startX + CGFloat(i) * segmentWidth, y: panelH / 2 - 34)
             label.horizontalAlignmentMode = .center
@@ -242,6 +246,8 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         let statusLine = SKLabelNode(fontNamed: "Menlo")
         statusLine.text = "BUILD QUICKLY — COLLAPSE IS COMING"
         statusLine.fontSize = 11
+        statusLineMaxWidth = max(80, width - 24)
+        fitLabelWidth(statusLine, maxWidth: statusLineMaxWidth, minFontSize: 9)
         statusLine.fontColor = SKColor(white: 0.62, alpha: 1)
         statusLine.position = CGPoint(x: 0, y: -panelH / 2 + 14)
         statusLine.verticalAlignmentMode = .center
@@ -260,12 +266,15 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             if let label = panel.childNode(withName: "prodLabel_\(i)") as? SKLabelNode {
                 let sign = delta >= 0 ? "+" : ""
                 label.text = "\(resourceTokens[i]) \(sign)\(String(format: "%.0f", delta))/s"
+                label.fontSize = size.width < 390 ? 10.5 : 12
+                fitLabelWidth(label, maxWidth: statusTokenMaxWidth, minFontSize: size.width < 390 ? 8.6 : 9.4)
                 label.fontColor = delta < 0 ? SKColor(red: 1, green: 0.5, blue: 0.5, alpha: 1) : .white
             }
         }
         
         // Update status line based on phase + event scanner
         if let statusLine = panel.childNode(withName: "statusLine") as? SKLabelNode {
+            statusLine.fontSize = 11
             if let preview = eventSystem.upcomingEventPreview {
                 statusLine.text = preview
                 statusLine.fontColor = SKColor(red: 1, green: 0.8, blue: 0.3, alpha: 1)
@@ -286,6 +295,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                     statusLine.text = ""
                 }
             }
+            fitLabelWidth(statusLine, maxWidth: statusLineMaxWidth, minFontSize: 9)
         }
     }
     
@@ -307,8 +317,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             cameraNode.addChild(btn)
             
             let label = SKLabelNode(fontNamed: "Menlo-Bold")
-            label.text = "⏳ SLOW"
+            label.text = "TIME SLOW"
             label.fontSize = 11
+            fitLabelWidth(label, maxWidth: 76, minFontSize: 8.4)
             label.fontColor = .white
             label.verticalAlignmentMode = .center
             label.name = "timeDilationLabel"
@@ -326,8 +337,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             cameraNode.addChild(btn)
             
             let label = SKLabelNode(fontNamed: "Menlo-Bold")
-            label.text = "⏪ REWIND"
+            label.text = "REWIND"
             label.fontSize = 11
+            fitLabelWidth(label, maxWidth: 76, minFontSize: 8.4)
             label.fontColor = .white
             label.verticalAlignmentMode = .center
             label.name = "timeRewindLabel"
@@ -348,7 +360,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         if let btn = cameraNode.childNode(withName: "timeDilationBtn") as? SKShapeNode {
             btn.fillColor = SKColor(red: 0.15, green: 0.08, blue: 0.2, alpha: 0.5)
             if let lbl = btn.childNode(withName: "timeDilationLabel") as? SKLabelNode {
-                lbl.text = "⏳ ACTIVE"
+                lbl.text = "ACTIVE"
+                lbl.fontSize = 11
+                fitLabelWidth(lbl, maxWidth: 76, minFontSize: 8.4)
                 lbl.fontColor = SKColor(red: 0.7, green: 0.4, blue: 1, alpha: 1)
             }
         }
@@ -450,7 +464,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         flash.run(SKAction.sequence([SKAction.fadeOut(withDuration: 0.8), SKAction.removeFromParent()]))
         
         let msg = SKLabelNode(fontNamed: "Menlo-Bold")
-        msg.text = "⏪ TIME REWOUND — \(Int(gameState.elapsedTime / 60)):\(String(format: "%02d", Int(gameState.elapsedTime) % 60))"
+        msg.text = "TIME REWOUND — \(Int(gameState.elapsedTime / 60)):\(String(format: "%02d", Int(gameState.elapsedTime) % 60))"
         msg.fontSize = 14
         msg.fontColor = SKColor(red: 0.4, green: 0.6, blue: 1, alpha: 1)
         msg.position = CGPoint(x: 0, y: size.height * 0.2)
@@ -466,7 +480,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         if let btn = cameraNode.childNode(withName: "timeRewindBtn") as? SKShapeNode {
             btn.fillColor = SKColor(red: 0.08, green: 0.1, blue: 0.2, alpha: 0.5)
             if let lbl = btn.childNode(withName: "timeRewindLabel") as? SKLabelNode {
-                lbl.text = "⏪ USED"
+                lbl.text = "USED"
+                lbl.fontSize = 11
+                fitLabelWidth(lbl, maxWidth: 76, minFontSize: 8.4)
                 lbl.fontColor = SKColor(white: 0.4, alpha: 1)
             }
         }
@@ -479,11 +495,14 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         if let btn = cameraNode.childNode(withName: "timeDilationBtn") as? SKShapeNode,
            let lbl = btn.childNode(withName: "timeDilationLabel") as? SKLabelNode {
             if gameState.timeDilationRemaining > 0 {
-                lbl.text = "⏳ \(Int(gameState.timeDilationRemaining))s"
+                lbl.text = "\(Int(gameState.timeDilationRemaining))s"
+                lbl.fontColor = .white
             } else if gameState.timeDilationUsed {
-                lbl.text = "⏳ USED"
+                lbl.text = "USED"
                 lbl.fontColor = SKColor(white: 0.4, alpha: 1)
             }
+            lbl.fontSize = 11
+            fitLabelWidth(lbl, maxWidth: 76, minFontSize: 8.4)
         }
     }
     
@@ -584,8 +603,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
     private func showEscalationWarning() {
         run(SoundManager.shared.escalation)
         let warning = SKLabelNode(fontNamed: "Menlo-Bold")
-        warning.text = "⚠ STELLAR INSTABILITY ⚠"
+        warning.text = "STELLAR INSTABILITY"
         warning.fontSize = 15
+        fitLabelWidth(warning, maxWidth: size.width - 48, minFontSize: 12)
         warning.fontColor = .orange
         warning.position = CGPoint(x: 0, y: 0)
         warning.zPosition = 200
@@ -729,9 +749,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 if techEffects.firstBuildingFree && !gameState.firstBuildingPlacedThisLoop {
                     gameState.firstBuildingPlacedThisLoop = true
                     gameState.metal += buildingType.metalCost // Refund
-                    showFloatingText("FREE (Echo) ⛏", at: col, row: row, color: SKColor(red: 0.7, green: 0.4, blue: 1, alpha: 1))
+                    showFloatingText("FREE (ECHO) MTL", at: col, row: row, color: SKColor(red: 0.7, green: 0.4, blue: 1, alpha: 1))
                 } else {
-                    showFloatingText("-\(Int(buildingType.metalCost)) ⛏", at: col, row: row, color: .orange)
+                    showFloatingText("-\(Int(buildingType.metalCost)) MTL", at: col, row: row, color: .orange)
                 }
                 gridRenderer.animatePlacement(col: col, row: row)
                 tutorial.onBuildingPlaced(type: buildingType)
@@ -749,7 +769,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 gridModel.demolishBuilding(at: col, row: row, state: gameState)
                 run(SoundManager.shared.demolish)
                 gridRenderer.highlightTile(col: col, row: row, color: .orange)
-                showFloatingText("+\(Int(refund)) ⛏", at: col, row: row, color: .green)
+                showFloatingText("+\(Int(refund)) MTL", at: col, row: row, color: .green)
             }
         } else if buildMenu.isAssignWorkerMode {
             if let tile = gridModel.tile(at: col, row: row), tile.buildingType != nil {
@@ -757,7 +777,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 if tile.assignedWorkers >= maxWorkers {
                     // At max — remove a worker instead
                     gridModel.removeWorker(at: col, row: row, state: gameState)
-                    showFloatingText("-1 👤", at: col, row: row, color: .orange)
+                    showFloatingText("-1 WRK", at: col, row: row, color: .orange)
                 } else if gameState.availableColonists > 0 {
                     let wasWorkers = tile.assignedWorkers
                     let didAssign = gridModel.assignWorker(
@@ -771,11 +791,11 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                         tutorial.onWorkerAssigned()
                         let newWorkers = wasWorkers + 1
                         if newWorkers == 1 {
-                            showFloatingText("+1 👤 Active!", at: col, row: row, color: .green)
+                            showFloatingText("+1 WRK ACTIVE", at: col, row: row, color: .green)
                         } else {
                             let eff = newWorkers == 2 ? techEffects.secondWorkerEfficiency : techEffects.thirdWorkerEfficiency
                             showFloatingText(
-                                "+1 👤 (\(Int((eff * 100).rounded()))% eff)",
+                                "+1 WRK (\(Int((eff * 100).rounded()))% EFF)",
                                 at: col,
                                 row: row,
                                 color: SKColor(red: 0.5, green: 0.9, blue: 0.5, alpha: 1)
@@ -793,9 +813,9 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
                 let nowDisabled = gridModel.toggleBuilding(at: col, row: row)
                 run(SoundManager.shared.tap)
                 if nowDisabled {
-                    showFloatingText("⏸ Disabled", at: col, row: row, color: .orange)
+                    showFloatingText("DISABLED", at: col, row: row, color: .orange)
                 } else {
-                    showFloatingText("▶ Enabled", at: col, row: row, color: .green)
+                    showFloatingText("ENABLED", at: col, row: row, color: .green)
                 }
             }
         } else {
@@ -904,13 +924,14 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         run(SoundManager.shared.warning)
         let power = escalationSystem.intensity(state: gameState)
         let messages = power > 0.7
-            ? ["⚠ CRITICAL INSTABILITY", "SYSTEMS FAILING", "EVACUATE?"]
-            : ["⚠ Stellar instability rising", "Structure integrity declining", "Energy reserves draining"]
+            ? ["CRITICAL INSTABILITY", "SYSTEMS FAILING", "EVACUATE"]
+            : ["Stellar instability rising", "Structure integrity declining", "Energy reserves draining"]
         
         let msg = messages[Int.random(in: 0..<messages.count)]
         let flash = SKLabelNode(fontNamed: "Menlo-Bold")
         flash.text = msg
         flash.fontSize = power > 0.7 ? 14 : 12
+        fitLabelWidth(flash, maxWidth: size.width - 48, minFontSize: 9.5)
         flash.fontColor = power > 0.7 ? .red : .orange
         flash.position = CGPoint(x: 0, y: size.height * 0.15)
         flash.zPosition = 190
@@ -1109,7 +1130,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             ("Research", "\(Int(gameState.research))"),
             ("Buildings", "\(buildingCount) (\(activeCount) active)"),
             ("Stability", "\(Int(gameState.stability))%"),
-            ("Survived", gameState.remainingTime < 1 ? "Full loop ✓" : "\(Int(gameState.elapsedTime))s"),
+            ("Survived", gameState.remainingTime < 1 ? "FULL LOOP" : "\(Int(gameState.elapsedTime))s"),
             ("", ""),
             ("Research →", "+\(knowledgeFromResearch)"),
             ("Buildings →", "+\(knowledgeFromBuildings)"),
@@ -1120,6 +1141,12 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         ]
         
         let startY = cardHeight / 2 - 75
+        let summaryLeftX = -cardWidth / 2 + 30
+        let summaryRightX = cardWidth / 2 - 30
+        let summaryContentWidth = summaryRightX - summaryLeftX
+        let summaryNameMaxWidth = summaryContentWidth * 0.62
+        let summaryValueMaxWidth = summaryContentWidth * 0.34
+
         for (i, stat) in stats.enumerated() {
             if stat.0.isEmpty { continue }
             
@@ -1127,18 +1154,20 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
             nameLabel.text = stat.0
             nameLabel.fontSize = 13
             nameLabel.fontColor = SKColor(white: 0.6, alpha: 1)
-            nameLabel.position = CGPoint(x: -cardWidth / 2 + 30, y: startY - CGFloat(i) * 24)
+            nameLabel.position = CGPoint(x: summaryLeftX, y: startY - CGFloat(i) * 24)
             nameLabel.horizontalAlignmentMode = .left
             nameLabel.zPosition = 1
+            fitLabelWidth(nameLabel, maxWidth: summaryNameMaxWidth, minFontSize: 10)
             card.addChild(nameLabel)
             
             let valueLabel = SKLabelNode(fontNamed: "Menlo-Bold")
             valueLabel.text = stat.1
             valueLabel.fontSize = 13
             valueLabel.fontColor = .white
-            valueLabel.position = CGPoint(x: cardWidth / 2 - 30, y: startY - CGFloat(i) * 24)
+            valueLabel.position = CGPoint(x: summaryRightX, y: startY - CGFloat(i) * 24)
             valueLabel.horizontalAlignmentMode = .right
             valueLabel.zPosition = 1
+            fitLabelWidth(valueLabel, maxWidth: summaryValueMaxWidth, minFontSize: 10)
             card.addChild(valueLabel)
             
             // Stagger in
@@ -1162,18 +1191,20 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         totalLabel.text = "Total Knowledge"
         totalLabel.fontSize = 14
         totalLabel.fontColor = SKColor(red: 0.4, green: 0.75, blue: 1, alpha: 1)
-        totalLabel.position = CGPoint(x: -cardWidth / 2 + 30, y: startY - CGFloat(stats.count) * 24 - 12)
+        totalLabel.position = CGPoint(x: summaryLeftX, y: startY - CGFloat(stats.count) * 24 - 12)
         totalLabel.horizontalAlignmentMode = .left
         totalLabel.zPosition = 1
+        fitLabelWidth(totalLabel, maxWidth: summaryNameMaxWidth, minFontSize: 10.5)
         card.addChild(totalLabel)
         
         let totalValue = SKLabelNode(fontNamed: "Menlo-Bold")
         totalValue.text = "+\(total)"
         totalValue.fontSize = 18
         totalValue.fontColor = SKColor(red: 0.4, green: 0.9, blue: 1, alpha: 1)
-        totalValue.position = CGPoint(x: cardWidth / 2 - 30, y: startY - CGFloat(stats.count) * 24 - 12)
+        totalValue.position = CGPoint(x: summaryRightX, y: startY - CGFloat(stats.count) * 24 - 12)
         totalValue.horizontalAlignmentMode = .right
         totalValue.zPosition = 1
+        fitLabelWidth(totalValue, maxWidth: summaryValueMaxWidth, minFontSize: 12)
         card.addChild(totalValue)
         
         // Tech Tree button (primary)
@@ -1188,10 +1219,11 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         card.addChild(techBtnBg)
         
         let techLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-        techLabel.text = "💡 SPEND KNOWLEDGE"
+        techLabel.text = "SPEND KNOWLEDGE"
         techLabel.fontSize = 13
         techLabel.fontColor = .white
         techLabel.verticalAlignmentMode = .center
+        fitLabelWidth(techLabel, maxWidth: 176, minFontSize: 10.5)
         techBtnBg.addChild(techLabel)
         
         // Quick restart button (secondary, below)
@@ -1210,6 +1242,7 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         skipLabel.fontSize = 11
         skipLabel.fontColor = SKColor(white: 0.5, alpha: 1)
         skipLabel.verticalAlignmentMode = .center
+        fitLabelWidth(skipLabel, maxWidth: 120, minFontSize: 9)
         restartBg.addChild(skipLabel)
         
         // Hit targets in camera space
@@ -1238,6 +1271,22 @@ class GameScene: SKScene, BuildMenuDelegate, EventOverlayDelegate {
         ]))
     }
     
+    private func fitLabelWidth(_ label: SKLabelNode, maxWidth: CGFloat, minFontSize: CGFloat) {
+        guard maxWidth > 0 else { return }
+
+        let baseSize = label.fontSize
+        let floor = min(minFontSize, baseSize)
+        var candidate = baseSize
+
+        while candidate > floor {
+            label.fontSize = candidate
+            if label.frame.width <= maxWidth { return }
+            candidate -= 0.4
+        }
+
+        label.fontSize = floor
+    }
+
     private func openTechTree() {
         guard let skView = self.view else { return }
         run(SoundManager.shared.tap)

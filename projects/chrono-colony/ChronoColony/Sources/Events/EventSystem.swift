@@ -61,7 +61,7 @@ final class EventSystem {
         if hasEventScanner && !isShowingEvent {
             let timeUntilEvent = nextEventTimer - accumulator
             if timeUntilEvent <= 30 && timeUntilEvent > 0 {
-                upcomingEventPreview = "⚠ Event incoming in \(Int(timeUntilEvent))s"
+                upcomingEventPreview = "EVENT INCOMING IN \(Int(timeUntilEvent))s"
             } else {
                 upcomingEventPreview = nil
             }

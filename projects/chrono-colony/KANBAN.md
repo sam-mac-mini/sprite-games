@@ -1,12 +1,13 @@
 # KANBAN — Chrono Colony
 
 ## 🔖 Backlog
-- [ ] TICK-023: Full emoji removal pass — replace every gameplay/UI emoji (HUD, status, tutorial, events, ability labels, floating texts) with relevant Kenney asset icons | Priority: high | Created: 2026-03-03
 - [ ] TICK-024: Kenney icon atlas + UI icon mapping system — centralized icon registry for consistent replacement and sizing across all screens | Priority: high | Created: 2026-03-03
 - [ ] TICK-025: Post-conversion UI containment QA — screenshot-driven pass verifying all icon/text/progress-bar content fits containers after emoji removal | Priority: high | Created: 2026-03-03
 
 ## 🔨 In Progress
 - [ ] TICK-018: UI/UX polish pass — clarity, spacing, consistency, Kenney-styled controls | Priority: high | Assigned: 2026-03-02
+- [ ] TICK-023: Full emoji removal pass — replace every gameplay/UI emoji (HUD, status, tutorial, events, ability labels, floating texts) with relevant Kenney asset icons | Priority: high | Assigned: 2026-03-19
+- [ ] TICK-026: Container layout system pass — enforce fixed padding/margins/alignment grid for top HUD + footer + status panel so text/icons/progress bars are always contained on all target device widths | Priority: high | Assigned: 2026-03-19
 
 ## 👀 Review
 

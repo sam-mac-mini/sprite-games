@@ -34,8 +34,16 @@ final class InfoPanelRenderer {
         // Title
         let title = SKLabelNode(fontNamed: "Menlo-Bold")
         let titleBase = isCompact ? buildingType.menuTitle : buildingType.rawValue.uppercased()
-        title.text = Self.clampLine(titleBase, maxChars: isCompact ? 12 : 20)
-        title.fontSize = isCompact ? 13 : 15
+        let titleText = Self.clampLine(titleBase, maxChars: isCompact ? 12 : 20)
+        title.text = titleText
+        let titleBaseFontSize: CGFloat = isCompact ? 13 : 15
+        title.fontSize = Self.fittedFontSize(
+            for: [titleText],
+            fontNamed: "Menlo-Bold",
+            baseFontSize: titleBaseFontSize,
+            minFontSize: isCompact ? 11 : 12,
+            maxWidth: panelWidth - 28
+        )
         title.fontColor = buildingType.color
         title.position = CGPoint(x: 0, y: panelHeight / 2 - (isCompact ? 24 : 26))
         title.horizontalAlignmentMode = .center
@@ -134,10 +142,28 @@ final class InfoPanelRenderer {
         default:
             fontSizeAdjustment = -1.2
         }
-        let lineFontSize = max(8.2, baseFontSize + fontSizeAdjustment)
+        var lineFontSize = max(8.2, baseFontSize + fontSizeAdjustment)
+        lineFontSize = Self.fittedFontSize(
+            for: lines.map(\.text),
+            fontNamed: "Menlo",
+            baseFontSize: lineFontSize,
+            minFontSize: isCompact ? 7.8 : 8.4,
+            maxWidth: panelWidth - 24
+        )
         let lineSpacing: CGFloat = isCompact ? (lineFontSize >= 9 ? 16 : 15) : (lineFontSize >= 10.5 ? 18 : 17)
+        let displayLines = lines.map {
+            (
+                text: Self.fittedLine(
+                    $0.text,
+                    fontNamed: "Menlo",
+                    fontSize: lineFontSize,
+                    maxWidth: panelWidth - 24
+                ),
+                color: $0.color
+            )
+        }
 
-        for (i, line) in lines.enumerated() {
+        for (i, line) in displayLines.enumerated() {
             let label = SKLabelNode(fontNamed: "Menlo")
             label.text = line.text
             label.fontSize = lineFontSize
@@ -189,5 +215,58 @@ final class InfoPanelRenderer {
             return String(format: "%.0f", value)
         }
         return String(format: "%.1f", value)
+    }
+
+    private static func fittedLine(
+        _ text: String,
+        fontNamed: String,
+        fontSize: CGFloat,
+        maxWidth: CGFloat
+    ) -> String {
+        guard !text.isEmpty, maxWidth > 0 else { return text }
+
+        let probe = SKLabelNode(fontNamed: fontNamed)
+        probe.fontSize = fontSize
+        probe.text = text
+        if probe.frame.width <= maxWidth { return text }
+
+        var trimmed = text
+        while trimmed.count > 1 {
+            trimmed.removeLast()
+            let candidate = trimmed + "…"
+            probe.text = candidate
+            if probe.frame.width <= maxWidth {
+                return candidate
+            }
+        }
+
+        return "…"
+    }
+
+    private static func fittedFontSize(
+        for lines: [String],
+        fontNamed: String,
+        baseFontSize: CGFloat,
+        minFontSize: CGFloat,
+        maxWidth: CGFloat
+    ) -> CGFloat {
+        guard !lines.isEmpty, maxWidth > 0 else { return baseFontSize }
+
+        var candidate = baseFontSize
+        let floorSize = min(minFontSize, baseFontSize)
+        let probe = SKLabelNode(fontNamed: fontNamed)
+
+        while candidate > floorSize {
+            probe.fontSize = candidate
+            let fits = lines.allSatisfy { line in
+                probe.text = line
+                return probe.frame.width <= maxWidth
+            }
+
+            if fits { return candidate }
+            candidate -= 0.4
+        }
+
+        return floorSize
     }
 }

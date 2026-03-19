@@ -18,6 +18,12 @@ final class HUDRenderer {
     private let useCompactResourceLabels: Bool
     private let stabilityBarCenterX: CGFloat
     private let stabilityBarFillWidth: CGFloat
+    private let rightColumnMaxWidth: CGFloat
+    private let colonistBaseFontSize: CGFloat
+    private let resourceBaseFontSize: CGFloat
+    private let resourceLabelMaxWidth: CGFloat
+    private let stabilityBaseFontSize: CGFloat
+    private let stabilityLabelMaxWidth: CGFloat
 
     private static let warningTextColor = SKColor(red: 1, green: 0.43, blue: 0.43, alpha: 1)
     private static let metalTint = SKColor(red: 0.75, green: 0.86, blue: 1.0, alpha: 1)
@@ -40,6 +46,7 @@ final class HUDRenderer {
         // HUD background
         let panelHeight: CGFloat = isCompactHUD ? 76 : 96
         let panelWidth = sceneSize.width - 12
+        rightColumnMaxWidth = max(isCompactHUD ? 58 : 84, panelWidth * (isCompactHUD ? 0.24 : 0.30))
         let hudBg = SKShapeNode(rectOf: CGSize(width: panelWidth, height: panelHeight), cornerRadius: 10)
         hudBg.fillColor = SKColor(red: 0.05, green: 0.05, blue: 0.09, alpha: 0.95)
         hudBg.strokeColor = SKColor(red: 0.12, green: 0.15, blue: 0.22, alpha: 0.6)
@@ -50,14 +57,14 @@ final class HUDRenderer {
         // Timer block
         let timerTitle = SKLabelNode(fontNamed: "Menlo")
         timerTitle.text = "TIME"
-        timerTitle.fontSize = isCompactHUD ? 8 : 9
+        timerTitle.fontSize = isCompactHUD ? 7.5 : 9
         timerTitle.fontColor = SKColor(white: 0.62, alpha: 1)
-        timerTitle.position = CGPoint(x: -panelWidth / 4, y: topY + (isCompactHUD ? 4 : 6))
+        timerTitle.position = CGPoint(x: -panelWidth / 4, y: topY + (isCompactHUD ? 3 : 6))
         timerTitle.horizontalAlignmentMode = .center
         hudNode.addChild(timerTitle)
 
         timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-        timerLabel.fontSize = isCompactHUD ? 18 : 22
+        timerLabel.fontSize = isCompactHUD ? 17.5 : 22
         timerLabel.fontColor = .white
         timerLabel.position = CGPoint(x: -panelWidth / 4, y: topY - 15)
         timerLabel.horizontalAlignmentMode = .center
@@ -65,24 +72,27 @@ final class HUDRenderer {
 
         // Phase block (right-aligned to avoid clashing with POP label)
         phaseLabel = SKLabelNode(fontNamed: "Menlo")
-        phaseLabel.fontSize = isCompactHUD ? 8 : 11
+        phaseLabel.fontSize = isCompactHUD ? 7.5 : 11
         phaseLabel.fontColor = SKColor(white: 0.65, alpha: 1)
-        phaseLabel.position = CGPoint(x: panelWidth / 2 - (isCompactHUD ? 14 : 12), y: topY - (isCompactHUD ? 2 : 2))
+        phaseLabel.position = CGPoint(x: panelWidth / 2 - (isCompactHUD ? 16 : 12), y: topY - (isCompactHUD ? 3 : 2))
         phaseLabel.horizontalAlignmentMode = .right
         hudNode.addChild(phaseLabel)
 
         // Colonists
-        let colonistFontSize = isCompactHUD ? max(9.0, fontSize - 2.0) : fontSize
-        colonistLabel = Self.makeLabel(x: panelWidth / 2 - (isCompactHUD ? 14 : 12), y: topY - (isCompactHUD ? 21 : 20), fontSize: colonistFontSize)
+        colonistBaseFontSize = isCompactHUD ? max(9.0, fontSize - 2.0) : fontSize
+        colonistLabel = Self.makeLabel(x: panelWidth / 2 - (isCompactHUD ? 16 : 12), y: topY - (isCompactHUD ? 23 : 20), fontSize: colonistBaseFontSize)
         colonistLabel.horizontalAlignmentMode = .right
         hudNode.addChild(colonistLabel)
 
         // Resources — single row
-        let resY = topY - (isCompactHUD ? 32 : 36)
+        let resY = topY - (isCompactHUD ? 34 : 36)
         let colW = panelWidth / 4
         let defaultLeftX = -panelWidth / 2 + 8
         let compactStartX = -panelWidth / 2 + colW / 2
-        let resourceFontSize = useCompactResourceLabels ? max(9.0, fontSize - 2.0) : fontSize
+        resourceBaseFontSize = useCompactResourceLabels ? max(8.8, fontSize - 2.2) : fontSize
+        resourceLabelMaxWidth = useCompactResourceLabels
+            ? max(44, colW - 8)
+            : max(56, colW - 12)
 
         let resourceX: [CGFloat]
         if useCompactResourceLabels {
@@ -101,10 +111,10 @@ final class HUDRenderer {
             ]
         }
 
-        metalLabel = Self.makeLabel(x: resourceX[0], y: resY, fontSize: resourceFontSize)
-        energyLabel = Self.makeLabel(x: resourceX[1], y: resY, fontSize: resourceFontSize)
-        biomassLabel = Self.makeLabel(x: resourceX[2], y: resY, fontSize: resourceFontSize)
-        researchLabel = Self.makeLabel(x: resourceX[3], y: resY, fontSize: resourceFontSize)
+        metalLabel = Self.makeLabel(x: resourceX[0], y: resY, fontSize: resourceBaseFontSize)
+        energyLabel = Self.makeLabel(x: resourceX[1], y: resY, fontSize: resourceBaseFontSize)
+        biomassLabel = Self.makeLabel(x: resourceX[2], y: resY, fontSize: resourceBaseFontSize)
+        researchLabel = Self.makeLabel(x: resourceX[3], y: resY, fontSize: resourceBaseFontSize)
 
         if useCompactResourceLabels {
             metalLabel.horizontalAlignmentMode = .center
@@ -143,10 +153,17 @@ final class HUDRenderer {
         stabilityFill.strokeColor = .clear
         hudNode.addChild(stabilityFill)
 
+        stabilityBaseFontSize = isCompactHUD ? 8.0 : 10
+        let stabilityLabelX = stabilityBarCenterX + barWidth / 2 + (isCompactHUD ? 1 : 6)
+        stabilityLabelMaxWidth = max(
+            isCompactHUD ? 34 : 48,
+            panelWidth / 2 - stabilityLabelX - 4
+        )
+
         stabilityLabel = SKLabelNode(fontNamed: "Menlo")
-        stabilityLabel.fontSize = isCompactHUD ? 9 : 10
+        stabilityLabel.fontSize = stabilityBaseFontSize
         stabilityLabel.fontColor = SKColor(white: 0.65, alpha: 1)
-        stabilityLabel.position = CGPoint(x: stabilityBarCenterX + barWidth / 2 + (isCompactHUD ? 2 : 6), y: barY - 2)
+        stabilityLabel.position = CGPoint(x: stabilityLabelX, y: barY - 2)
         stabilityLabel.horizontalAlignmentMode = .left
         hudNode.addChild(stabilityLabel)
     }
@@ -182,20 +199,28 @@ final class HUDRenderer {
 
         switch state.phase {
         case .landing:
-            phaseLabel.text = useCompactResourceLabels ? "LAND" : "PHASE: LANDING"
+            phaseLabel.text = useCompactResourceLabels ? "LND" : "PHASE: LANDING"
             phaseLabel.fontColor = SKColor(white: 0.65, alpha: 1)
         case .expansion:
-            phaseLabel.text = useCompactResourceLabels ? "EXPN" : "PHASE: EXPANSION"
+            phaseLabel.text = useCompactResourceLabels ? "EXP" : "PHASE: EXPANSION"
             phaseLabel.fontColor = SKColor(red: 0.72, green: 0.82, blue: 1.0, alpha: 1)
         case .escalation:
-            phaseLabel.text = useCompactResourceLabels ? "ESCL" : "PHASE: ESCALATION"
+            phaseLabel.text = useCompactResourceLabels ? "ESC" : "PHASE: ESCALATION"
             phaseLabel.fontColor = .orange
         case .collapse:
-            phaseLabel.text = useCompactResourceLabels ? "COLL" : "PHASE: COLLAPSE"
+            phaseLabel.text = useCompactResourceLabels ? "COL" : "PHASE: COLLAPSE"
             phaseLabel.fontColor = .red
         case .summary:
             phaseLabel.text = ""
         }
+
+        phaseLabel.fontSize = Self.fittedFontSize(
+            phaseLabel.text ?? "",
+            fontNamed: "Menlo",
+            baseSize: isCompactHUD ? 7.5 : 11,
+            minSize: isCompactHUD ? 6.0 : 8.0,
+            maxWidth: rightColumnMaxWidth
+        )
 
         let metalValue = useCompactResourceLabels ? Self.compactNumber(state.metal) : "\(Int(state.metal))"
         let energyValue = useCompactResourceLabels ? Self.compactNumber(state.energy) : "\(Int(state.energy))"
@@ -214,7 +239,45 @@ final class HUDRenderer {
             researchLabel.text = "SCI \(researchValue)"
         }
 
-        colonistLabel.text = "POP \(state.availableColonists)/\(state.totalColonists)"
+        let resourceMinSize: CGFloat = useCompactResourceLabels ? 6.8 : 8.0
+        metalLabel.fontSize = Self.fittedFontSize(
+            metalLabel.text ?? "",
+            fontNamed: "Menlo",
+            baseSize: resourceBaseFontSize,
+            minSize: resourceMinSize,
+            maxWidth: resourceLabelMaxWidth
+        )
+        energyLabel.fontSize = Self.fittedFontSize(
+            energyLabel.text ?? "",
+            fontNamed: "Menlo",
+            baseSize: resourceBaseFontSize,
+            minSize: resourceMinSize,
+            maxWidth: resourceLabelMaxWidth
+        )
+        biomassLabel.fontSize = Self.fittedFontSize(
+            biomassLabel.text ?? "",
+            fontNamed: "Menlo",
+            baseSize: resourceBaseFontSize,
+            minSize: resourceMinSize,
+            maxWidth: resourceLabelMaxWidth
+        )
+        researchLabel.fontSize = Self.fittedFontSize(
+            researchLabel.text ?? "",
+            fontNamed: "Menlo",
+            baseSize: resourceBaseFontSize,
+            minSize: resourceMinSize,
+            maxWidth: resourceLabelMaxWidth
+        )
+
+        let colonistPrefix = useCompactResourceLabels ? "PPL" : "POP"
+        colonistLabel.text = "\(colonistPrefix) \(state.availableColonists)/\(state.totalColonists)"
+        colonistLabel.fontSize = Self.fittedFontSize(
+            colonistLabel.text ?? "",
+            fontNamed: "Menlo",
+            baseSize: colonistBaseFontSize,
+            minSize: isCompactHUD ? 7.2 : 9.0,
+            maxWidth: rightColumnMaxWidth
+        )
 
         metalLabel.fontColor = state.metal < 30 ? Self.warningTextColor : Self.metalTint
         energyLabel.fontColor = state.energy < 10 ? Self.warningTextColor : Self.energyTint
@@ -256,6 +319,13 @@ final class HUDRenderer {
 
         let stabilityPrefix = useCompactResourceLabels ? "STB" : "STAB"
         stabilityLabel.text = "\(stabilityPrefix) \(Int(state.stability))%"
+        stabilityLabel.fontSize = Self.fittedFontSize(
+            stabilityLabel.text ?? "",
+            fontNamed: "Menlo",
+            baseSize: stabilityBaseFontSize,
+            minSize: isCompactHUD ? 6.8 : 8.5,
+            maxWidth: stabilityLabelMaxWidth
+        )
     }
 
     private static func compactNumber(_ value: Double) -> String {
@@ -279,6 +349,31 @@ final class HUDRenderer {
         let raw = String(format: scaled >= 10 ? "%.0f" : "%.1f", scaled)
         let trimmed = raw.hasSuffix(".0") ? String(raw.dropLast(2)) : raw
         return "\(trimmed)\(suffix)"
+    }
+
+    private static func fittedFontSize(
+        _ text: String,
+        fontNamed: String,
+        baseSize: CGFloat,
+        minSize: CGFloat,
+        maxWidth: CGFloat
+    ) -> CGFloat {
+        guard !text.isEmpty, maxWidth > 0 else { return baseSize }
+
+        let floorSize = min(minSize, baseSize)
+        var candidate = baseSize
+        let probe = SKLabelNode(fontNamed: fontNamed)
+        probe.text = text
+
+        while candidate > floorSize {
+            probe.fontSize = candidate
+            if probe.frame.width <= maxWidth {
+                return candidate
+            }
+            candidate -= 0.3
+        }
+
+        return floorSize
     }
 
     private static func makeLabel(x: CGFloat, y: CGFloat, fontSize: CGFloat) -> SKLabelNode {
