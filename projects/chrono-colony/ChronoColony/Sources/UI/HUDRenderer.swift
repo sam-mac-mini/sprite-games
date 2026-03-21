@@ -199,16 +199,16 @@ final class HUDRenderer {
 
         switch state.phase {
         case .landing:
-            phaseLabel.text = useCompactResourceLabels ? "LND" : "PHASE: LANDING"
+            phaseLabel.text = "LND"
             phaseLabel.fontColor = SKColor(white: 0.65, alpha: 1)
         case .expansion:
-            phaseLabel.text = useCompactResourceLabels ? "EXP" : "PHASE: EXPANSION"
+            phaseLabel.text = "EXP"
             phaseLabel.fontColor = SKColor(red: 0.72, green: 0.82, blue: 1.0, alpha: 1)
         case .escalation:
-            phaseLabel.text = useCompactResourceLabels ? "ESC" : "PHASE: ESCALATION"
+            phaseLabel.text = "ESC"
             phaseLabel.fontColor = .orange
         case .collapse:
-            phaseLabel.text = useCompactResourceLabels ? "COL" : "PHASE: COLLAPSE"
+            phaseLabel.text = "COL"
             phaseLabel.fontColor = .red
         case .summary:
             phaseLabel.text = ""
@@ -269,8 +269,7 @@ final class HUDRenderer {
             maxWidth: resourceLabelMaxWidth
         )
 
-        let colonistPrefix = useCompactResourceLabels ? "PPL" : "POP"
-        colonistLabel.text = "\(colonistPrefix) \(state.availableColonists)/\(state.totalColonists)"
+        colonistLabel.text = "CREW \(state.availableColonists)/\(state.totalColonists)"
         colonistLabel.fontSize = Self.fittedFontSize(
             colonistLabel.text ?? "",
             fontNamed: "Menlo",

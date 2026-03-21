@@ -193,7 +193,7 @@ final class TutorialSystem {
         let midX: CGFloat = 0
         let topArea = sceneSize.height / 2 - 110
         let midArea: CGFloat = 0
-        let bottomArea = -sceneSize.height / 2 + 130
+        let bottomArea = -sceneSize.height / 2 + 150
         
         switch step {
         case .welcome:

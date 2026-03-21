@@ -25,7 +25,7 @@ final class BuildMenuRenderer {
     private var isUltraCompactMenu: Bool = false
     private var selectedScale: CGFloat = 1.05
     private let minimumTapTarget: CGFloat = 64
-    private let maxSingleRowItems = 8
+    private let maxSingleRowItems = 6
     
     /// Buildings available for this loop (filtered by tech unlocks)
     private(set) var availableBuildings: [BuildingType] = BuildingType.starterBuildings
@@ -61,7 +61,10 @@ final class BuildMenuRenderer {
         buttonSpacing = sceneSize.width < 360 ? 4 : 6
 
         var rowCount = allItems > maxSingleRowItems ? 2 : 1
-        if sceneSize.width < 360, allItems >= 11 {
+        // Dense menus (11+ entries) are always 3 rows to avoid icon/text clipping.
+        if allItems >= 11 {
+            rowCount = 3
+        } else if sceneSize.width < 360, allItems >= 9 {
             rowCount = 3
         }
         let itemsPerRow = Int(ceil(Double(allItems) / Double(rowCount)))
